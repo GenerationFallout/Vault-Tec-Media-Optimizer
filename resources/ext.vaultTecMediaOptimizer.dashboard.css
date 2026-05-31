@@ -1,0 +1,530 @@
+/**
+ * Vault-Tec Media Optimizer dashboard styles.
+ * Designed to integrate with any skin (VaultTec, Vector, Minerva).
+ */
+
+.mw-vtmo-intro {
+	font-size: 0.95em;
+	color: var( --color-subtle, #54595d );
+	margin-bottom: 1.5em;
+	max-width: 800px;
+}
+
+.mw-vtmo-hint {
+	font-size: 0.9em;
+	color: var( --color-subtle, #54595d );
+	margin-top: 2em;
+	padding: 0.8em 1em;
+	border-left: 3px solid #c8ccd1;
+	background: var( --background-color-neutral-subtle, #f8f9fa );
+}
+
+/* === Summary banner === */
+
+.mw-vtmo-summary {
+	padding: 1em 1.2em;
+	margin: 1em 0;
+	border-radius: 4px;
+	border-left: 4px solid;
+	font-size: 1.05em;
+}
+
+.mw-vtmo-summary-ok {
+	background-color: rgba( 20, 134, 109, 0.08 );
+	border-left-color: #14866d;
+	color: #14866d;
+}
+
+.mw-vtmo-summary-warn {
+	background-color: rgba( 252, 197, 31, 0.1 );
+	border-left-color: #ac6600;
+	color: #ac6600;
+}
+
+.mw-vtmo-summary-fail {
+	background-color: rgba( 215, 76, 60, 0.1 );
+	border-left-color: #d33;
+	color: #b32424;
+}
+
+/* === Action buttons === */
+
+.mw-vtmo-actions {
+	margin: 1.5em 0;
+	display: flex;
+	gap: 0.6em;
+	flex-wrap: wrap;
+}
+
+.mw-vtmo-button {
+	display: inline-block;
+	padding: 0.5em 1em;
+	border: 1px solid #a2a9b1;
+	background-color: #f8f9fa;
+	color: #202122;
+	text-decoration: none;
+	border-radius: 2px;
+	font-weight: 500;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.mw-vtmo-button:hover {
+	background-color: #fff;
+	border-color: #72777d;
+	text-decoration: none;
+}
+
+.mw-vtmo-button:disabled,
+.mw-vtmo-button[ disabled ] {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.mw-vtmo-button-primary {
+	background-color: #36c;
+	color: #fff;
+	border-color: #36c;
+}
+
+.mw-vtmo-button-primary:hover {
+	background-color: #447ff5;
+	border-color: #447ff5;
+	color: #fff;
+}
+
+.mw-vtmo-button-refresh::before {
+	content: "⟳ ";
+}
+
+/* === Sections === */
+
+.mw-vtmo-section {
+	margin: 2em 0;
+}
+
+.mw-vtmo-section h2 {
+	border-bottom: 1px solid #a2a9b1;
+	padding-bottom: 0.3em;
+	margin-bottom: 0.5em;
+}
+
+.mw-vtmo-table {
+	width: 100%;
+	max-width: 1000px;
+}
+
+.mw-vtmo-table th[ scope="row" ] {
+	width: 35%;
+	text-align: left;
+	font-weight: 600;
+	vertical-align: top;
+}
+
+.mw-vtmo-table td {
+	vertical-align: top;
+}
+
+.mw-vtmo-status-cell {
+	width: 110px;
+	white-space: nowrap;
+}
+
+.mw-vtmo-detail {
+	font-size: 0.9em;
+	color: var( --color-subtle, #54595d );
+	margin-top: 0.4em;
+	max-width: 700px;
+	line-height: 1.5;
+}
+
+/* === Status badges === */
+
+.mw-vtmo-badge {
+	display: inline-block;
+	padding: 0.15em 0.6em;
+	border-radius: 12px;
+	font-size: 0.85em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.mw-vtmo-badge-ok {
+	background-color: #14866d;
+	color: #fff;
+}
+
+.mw-vtmo-badge-warn {
+	background-color: #fcc51f;
+	color: #5c4400;
+}
+
+.mw-vtmo-badge-fail {
+	background-color: #d33;
+	color: #fff;
+}
+
+.mw-vtmo-badge-info {
+	background-color: #36c;
+	color: #fff;
+}
+
+/* === Progress bar (backfill page) === */
+
+.mw-vtmo-progress {
+	margin: 1em 0;
+	height: 28px;
+	background-color: #eaecf0;
+	border-radius: 14px;
+	overflow: hidden;
+	position: relative;
+}
+
+.mw-vtmo-progress-bar {
+	height: 100%;
+	background: linear-gradient( 90deg, #36c 0%, #447ff5 100% );
+	transition: width 0.3s ease;
+	min-width: 0;
+}
+
+.mw-vtmo-progress-label {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate( -50%, -50% );
+	color: #fff;
+	font-weight: 600;
+	font-size: 0.9em;
+	text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.4 );
+	white-space: nowrap;
+}
+
+/* === Stat cards grid === */
+
+.mw-vtmo-stats-grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 180px, 1fr ) );
+	gap: 1em;
+	margin: 1em 0;
+}
+
+.mw-vtmo-stat-card {
+	padding: 1em;
+	border: 1px solid #a2a9b1;
+	border-radius: 4px;
+	background-color: #f8f9fa;
+}
+
+.mw-vtmo-stat-card-value {
+	font-size: 1.6em;
+	font-weight: 700;
+	color: #36c;
+	margin: 0.2em 0;
+}
+
+.mw-vtmo-stat-card-label {
+	font-size: 0.9em;
+	color: var( --color-subtle, #54595d );
+}
+
+/* === Form === */
+
+.mw-vtmo-form {
+	margin: 1.5em 0;
+}
+
+/* === Dark mode === */
+
+@media ( prefers-color-scheme: dark ) {
+	.mw-vtmo-intro,
+	.mw-vtmo-detail,
+	.mw-vtmo-stat-card-label,
+	.mw-vtmo-hint {
+		color: #a2a9b1;
+	}
+
+	.mw-vtmo-button {
+		background-color: #27292d;
+		color: #eaecf0;
+		border-color: #54595d;
+	}
+
+	.mw-vtmo-button:hover {
+		background-color: #36383d;
+	}
+
+	.mw-vtmo-stat-card,
+	.mw-vtmo-hint {
+		background-color: #27292d;
+		border-color: #54595d;
+	}
+
+	.mw-vtmo-progress {
+		background-color: #36383d;
+	}
+}
+
+/* === VaultTec skin overrides (Fallout wiki) === */
+
+/* Palette extraite du skin officiel:
+ *   #7dff9c : vert primaire (titres, focus)
+ *   #4ab06a : vert link
+ *   #cdffd6 : vert hover
+ *   #cce8d4 : texte
+ *   #06100b -> #142b1e : backgrounds en dégradés
+ *   #f5c84a : warning
+ *   #ff9a9a : erreur
+ */
+
+.skin-vaulttec .mw-vtmo-intro,
+.skin-vaulttec .mw-vtmo-detail,
+.skin-vaulttec .mw-vtmo-stat-card-label,
+.skin-vaulttec .mw-vtmo-hint {
+	color: #7aaa88;
+}
+
+.skin-vaulttec .mw-vtmo-hint {
+	background: rgba( 6, 15, 11, 0.85 );
+	border-left-color: #4ab06a;
+	color: #cce8d4;
+}
+
+/* Summary banners */
+.skin-vaulttec .mw-vtmo-summary-ok {
+	background-color: rgba( 125, 255, 156, 0.08 );
+	border-left-color: #7dff9c;
+	color: #7dff9c;
+}
+
+.skin-vaulttec .mw-vtmo-summary-warn {
+	background-color: rgba( 245, 200, 74, 0.1 );
+	border-left-color: #f5c84a;
+	color: #f5c84a;
+}
+
+.skin-vaulttec .mw-vtmo-summary-fail {
+	background-color: rgba( 255, 94, 94, 0.1 );
+	border-left-color: #ff5e5e;
+	color: #ff9a9a;
+}
+
+/* Badges */
+.skin-vaulttec .mw-vtmo-badge {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.1em;
+}
+
+.skin-vaulttec .mw-vtmo-badge-ok {
+	background-color: rgba( 125, 255, 156, 0.18 );
+	color: #7dff9c;
+	border: 1px solid rgba( 125, 255, 156, 0.4 );
+}
+
+.skin-vaulttec .mw-vtmo-badge-warn {
+	background-color: rgba( 245, 200, 74, 0.15 );
+	color: #f5c84a;
+	border: 1px solid rgba( 245, 200, 74, 0.4 );
+}
+
+.skin-vaulttec .mw-vtmo-badge-fail {
+	background-color: rgba( 255, 94, 94, 0.15 );
+	color: #ff9a9a;
+	border: 1px solid rgba( 255, 94, 94, 0.4 );
+}
+
+.skin-vaulttec .mw-vtmo-badge-info {
+	background-color: rgba( 168, 216, 234, 0.15 );
+	color: #a8d8ea;
+	border: 1px solid rgba( 168, 216, 234, 0.4 );
+}
+
+/* Buttons */
+.skin-vaulttec .mw-vtmo-button {
+	background: rgba( 12, 24, 18, 0.9 );
+	color: #4ab06a;
+	border: 1px solid rgba( 125, 255, 156, 0.3 );
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	border-radius: 2px;
+}
+
+.skin-vaulttec .mw-vtmo-button:hover {
+	background: rgba( 125, 255, 156, 0.1 );
+	color: #7dff9c;
+	border-color: rgba( 125, 255, 156, 0.6 );
+}
+
+.skin-vaulttec .mw-vtmo-button-primary {
+	background: rgba( 125, 255, 156, 0.15 );
+	color: #7dff9c;
+	border-color: #7dff9c;
+}
+
+.skin-vaulttec .mw-vtmo-button-primary:hover {
+	background: rgba( 125, 255, 156, 0.28 );
+	color: #cdffd6;
+	border-color: #cdffd6;
+	box-shadow: 0 0 12px rgba( 125, 255, 156, 0.25 );
+}
+
+/* Sections */
+.skin-vaulttec .mw-vtmo-section h2 {
+	color: #7dff9c;
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.15em;
+	border-bottom: 1px dashed rgba( 125, 255, 156, 0.15 );
+}
+
+/* Tables */
+.skin-vaulttec .mw-vtmo-table {
+	background-color: rgba( 12, 24, 18, 0.85 );
+	border-color: rgba( 125, 255, 156, 0.15 );
+	color: #cce8d4;
+}
+
+.skin-vaulttec .mw-vtmo-table th[ scope="row" ] {
+	color: #cce8d4;
+	font-family: 'Crimson Pro', Georgia, serif;
+}
+
+.skin-vaulttec .mw-vtmo-table tr:hover td {
+	background-color: rgba( 125, 255, 156, 0.06 );
+}
+
+.skin-vaulttec .mw-vtmo-table code {
+	background: rgba( 6, 15, 11, 0.6 );
+	color: #7dff9c;
+	font-family: 'IBM Plex Mono', monospace;
+	padding: 2px 6px;
+	border-radius: 2px;
+	font-size: 0.9em;
+}
+
+/* Stat cards */
+.skin-vaulttec .mw-vtmo-stat-card {
+	background-color: rgba( 6, 15, 11, 0.7 );
+	border-color: rgba( 125, 255, 156, 0.15 );
+}
+
+.skin-vaulttec .mw-vtmo-stat-card-value {
+	color: #7dff9c;
+	font-family: 'Instrument Serif', Georgia, serif;
+	font-style: italic;
+	text-shadow: 0 0 8px rgba( 125, 255, 156, 0.3 );
+}
+
+.skin-vaulttec .mw-vtmo-stat-card-label {
+	color: #7aaa88;
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+}
+
+/* Progress bar */
+.skin-vaulttec .mw-vtmo-progress {
+	background-color: rgba( 6, 15, 11, 0.9 );
+	border: 1px solid rgba( 125, 255, 156, 0.2 );
+}
+
+.skin-vaulttec .mw-vtmo-progress-bar {
+	background: linear-gradient( 90deg, #4ab06a 0%, #7dff9c 100% );
+}
+
+.skin-vaulttec .mw-vtmo-progress-label {
+	color: #06100b;
+	font-family: 'IBM Plex Mono', monospace;
+	font-weight: 700;
+	text-shadow: 0 1px 2px rgba( 125, 255, 156, 0.4 );
+}
+
+/* === Compression ratio bars (stats page) === */
+.mw-vtmo-ratio-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 10px 0;
+}
+
+.mw-vtmo-ratio-label {
+	flex: 0 0 220px;
+	font-size: 0.9em;
+}
+
+.mw-vtmo-ratio-track {
+	flex: 1 1 auto;
+	height: 22px;
+	background-color: rgba( 0, 0, 0, 0.08 );
+	border-radius: 4px;
+	overflow: hidden;
+	position: relative;
+	min-width: 120px;
+}
+
+.mw-vtmo-ratio-fill {
+	height: 100%;
+	background: linear-gradient( 90deg, #4ab06a 0%, #7dff9c 100% );
+	border-radius: 4px 0 0 4px;
+	transition: width 0.3s ease;
+	min-width: 2px;
+}
+
+.mw-vtmo-ratio-saving {
+	flex: 0 0 130px;
+	text-align: right;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+/* Vault-Tec skin theming for ratio bars */
+.skin-vaulttec .mw-vtmo-ratio-track {
+	background-color: rgba( 6, 15, 11, 0.9 );
+	border: 1px solid rgba( 125, 255, 156, 0.2 );
+}
+
+.skin-vaulttec .mw-vtmo-ratio-fill {
+	background: linear-gradient( 90deg, #4ab06a 0%, #7dff9c 100% );
+}
+
+.skin-vaulttec .mw-vtmo-ratio-saving {
+	color: #7dff9c;
+	font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Responsive: stack on narrow screens */
+@media ( max-width: 600px ) {
+	.mw-vtmo-ratio-row {
+		flex-wrap: wrap;
+	}
+	.mw-vtmo-ratio-label {
+		flex: 1 1 100%;
+	}
+	.mw-vtmo-ratio-saving {
+		flex: 0 0 auto;
+	}
+}
+
+/* === Zopfli section on the backfill page === */
+.mw-vtmo-zopfli-section {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid rgba( 0, 0, 0, 0.1 );
+}
+
+.skin-vaulttec .mw-vtmo-zopfli-section {
+	border-top: 1px solid rgba( 125, 255, 156, 0.2 );
+}
+
+.mw-vtmo-zopfli-section h2 {
+	font-size: 1.1em;
+	margin-bottom: 4px;
+	border: none;
+}

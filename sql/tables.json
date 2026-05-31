@@ -1,0 +1,100 @@
+[
+	{
+		"name": "vtmo_image_optimization",
+		"comment": "Tracks optimization status and savings for each processed image",
+		"columns": [
+			{
+				"name": "io_img_name",
+				"comment": "Image filename (matches image.img_name)",
+				"type": "binary",
+				"options": { "length": 255, "notnull": true }
+			},
+			{
+				"name": "io_status",
+				"comment": "Status: pending, complete, failed, skipped",
+				"type": "binary",
+				"options": { "length": 32, "notnull": true, "default": "pending" }
+			},
+			{
+				"name": "io_original_size",
+				"comment": "Size of original file before optimization (bytes)",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": false }
+			},
+			{
+				"name": "io_optimized_size",
+				"comment": "Size of original file after lossless optimization (bytes)",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": false }
+			},
+			{
+				"name": "io_webp_size",
+				"comment": "Size of WebP version (bytes)",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": false }
+			},
+			{
+				"name": "io_processed_at",
+				"comment": "Timestamp of last processing",
+				"type": "mwtimestamp",
+				"options": { "notnull": false }
+			},
+			{
+				"name": "io_backend",
+				"comment": "Backend used: imagick, gd",
+				"type": "binary",
+				"options": { "length": 16, "notnull": false }
+			},
+			{
+				"name": "io_error",
+				"comment": "Last error message if status=failed",
+				"type": "blob",
+				"options": { "length": 65530, "notnull": false }
+			},
+			{
+				"name": "io_png_zopfli_size",
+				"comment": "Size of the original PNG after second-pass zopflipng recompression (bytes); NULL if not yet recompressed or not a PNG",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": false }
+			}
+		],
+		"indexes": [
+			{ "name": "io_status", "columns": [ "io_status" ], "unique": false },
+			{ "name": "io_processed_at", "columns": [ "io_processed_at" ], "unique": false }
+		],
+		"pk": [ "io_img_name" ]
+	},
+	{
+		"name": "vtmo_zopfli_thumb_stats",
+		"comment": "Single-row aggregate of zopflipng savings on thumbnails (which are volatile and not tracked per-file)",
+		"columns": [
+			{
+				"name": "zts_id",
+				"comment": "Always 1 (single-row table)",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": true }
+			},
+			{
+				"name": "zts_thumb_count",
+				"comment": "Number of thumbnail PNGs recompressed so far",
+				"type": "integer",
+				"options": { "unsigned": true, "notnull": true, "default": 0 }
+			},
+			{
+				"name": "zts_bytes_saved",
+				"comment": "Cumulative bytes saved on thumbnails by zopflipng",
+				"type": "bigint",
+				"options": { "unsigned": true, "notnull": true, "default": 0 }
+			},
+			{
+				"name": "zts_updated_at",
+				"comment": "Timestamp of last update",
+				"type": "mwtimestamp",
+				"options": { "notnull": false }
+			}
+		],
+		"indexes": [],
+		"pk": [ "zts_id" ]
+	}
+]
+

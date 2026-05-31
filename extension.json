@@ -1,0 +1,182 @@
+{
+	"name": "VaultTecMediaOptimizer",
+	"namemsg": "vaulttecmediaoptimizer-extensionname",
+	"version": "1.6.0",
+	"author": [
+		"[https://fallout-wiki.com Archives de Vault-Tec]"
+	],
+	"url": "https://fallout-wiki.com/Extension:VaultTecMediaOptimizer",
+	"descriptionmsg": "vaulttecmediaoptimizer-desc",
+	"license-name": "GPL-2.0-or-later",
+	"type": "media",
+	"requires": {
+		"MediaWiki": ">= 1.43.0",
+		"platform": {
+			"php": ">= 8.1"
+		}
+	},
+	"MessagesDirs": {
+		"VaultTecMediaOptimizer": [
+			"i18n"
+		]
+	},
+	"ExtensionMessagesFiles": {
+		"VaultTecMediaOptimizerAlias": "VaultTecMediaOptimizer.alias.php"
+	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\VaultTecMediaOptimizer\\": "includes/"
+	},
+	"HookHandlers": {
+		"main": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Hook\\MainHooks",
+			"services": [
+				"VaultTecMediaOptimizer.HtmlRewriter",
+				"VaultTecMediaOptimizer.OptimizationRecord",
+				"VaultTecMediaOptimizer.WebPRepo",
+				"VaultTecMediaOptimizer.OptimizerFactory",
+				"VaultTecMediaOptimizer.Config",
+				"JobQueueGroup",
+				"VaultTecMediaOptimizer.ZopfliRecompressor"
+			]
+		},
+		"schema": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Hook\\SchemaHooks"
+		}
+	},
+	"Hooks": {
+		"FileUpload": "main",
+		"FileDeleteComplete": "main",
+		"FileTransformed": "main",
+		"OutputPageBeforeHTML": "main",
+		"LoadExtensionSchemaUpdates": "schema"
+	},
+	"SpecialPages": {
+		"VTMOStatus": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Special\\SpecialVTMOStatus",
+			"services": [
+				"VaultTecMediaOptimizer.PrerequisiteChecker",
+				"VaultTecMediaOptimizer.WebPRepo"
+			]
+		},
+		"VTMOBackfill": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Special\\SpecialVTMOBackfill",
+			"services": [
+				"VaultTecMediaOptimizer.BackfillScheduler",
+				"VaultTecMediaOptimizer.OptimizationRecord",
+				"VaultTecMediaOptimizer.ZopfliRecompressor"
+			]
+		},
+		"VTMOStats": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Special\\SpecialVTMOStats",
+			"services": [
+				"VaultTecMediaOptimizer.OptimizationRecord"
+			]
+		}
+	},
+	"JobClasses": {
+		"VaultTecMediaOptimizerOptimizeImage": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Job\\OptimizeImageJob",
+			"services": [
+				"VaultTecMediaOptimizer.ImageProcessor"
+			]
+		},
+		"VaultTecMediaOptimizerZopfliOptimize": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Job\\ZopfliOptimizeJob",
+			"services": [
+				"VaultTecMediaOptimizer.ZopfliOriginalProcessor"
+			]
+		}
+	},
+	"AvailableRights": [
+		"vaulttecmediaoptimizer-admin"
+	],
+	"GroupPermissions": {
+		"sysop": {
+			"vaulttecmediaoptimizer-admin": true
+		}
+	},
+	"ResourceModules": {
+		"ext.vaultTecMediaOptimizer.dashboard": {
+			"styles": "ext.vaultTecMediaOptimizer.dashboard.css",
+			"scripts": "ext.vaultTecMediaOptimizer.dashboard.js"
+		}
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "resources",
+		"remoteExtPath": "VaultTecMediaOptimizer/resources"
+	},
+	"ServiceWiringFiles": [
+		"includes/ServiceWiring.php"
+	],
+	"config": {
+		"VaultTecMediaOptimizerEnabled": {
+			"value": true,
+			"description": "Master switch. Set false to disable processing without uninstalling."
+		},
+		"VaultTecMediaOptimizerWebPDirectory": {
+			"value": "images_webp",
+			"description": "Directory name (sibling of images/) where WebP copies are stored. Allows clean uninstall by simply removing this directory."
+		},
+		"VaultTecMediaOptimizerWebPQuality": {
+			"value": 85,
+			"description": "Quality for lossy WebP (JPEG sources). 0-100, recommended 80-90."
+		},
+		"VaultTecMediaOptimizerWebPLosslessForPng": {
+			"value": true,
+			"description": "Use lossless WebP for PNG sources (preserves transparency and crisp UI elements)."
+		},
+		"VaultTecMediaOptimizerOptimizeOriginals": {
+			"value": true,
+			"description": "Perform lossless optimization on originals (strip metadata, recompress). Set false to leave originals strictly untouched."
+		},
+		"VaultTecMediaOptimizerZopfliEnabled": {
+			"value": false,
+			"description": "Enable second-pass lossless PNG recompression with the external zopflipng binary. Requires zopflipng installed and shell execution allowed. Off by default."
+		},
+		"VaultTecMediaOptimizerZopfliBinary": {
+			"value": "zopflipng",
+			"description": "Path to the zopflipng binary, or just the command name to look up on PATH."
+		},
+		"VaultTecMediaOptimizerZopfliIterations": {
+			"value": 15,
+			"description": "Number of zopflipng iterations. Higher = smaller output but slower. 15 is a good balance; 50+ for maximum compression."
+		},
+		"VaultTecMediaOptimizerPngEngine": {
+			"value": "zopflipng",
+			"description": "Which external engine performs second-pass lossless PNG recompression: 'zopflipng' (best compression, slow) or 'oxipng' (much faster, multi-threaded, marginally larger). Affects originals, thumbnails, and the repair script."
+		},
+		"VaultTecMediaOptimizerOxipngBinary": {
+			"value": "oxipng",
+			"description": "Path or command name for the oxipng binary. If open_basedir restricts /usr/bin, set an absolute path inside the wiki tree."
+		},
+		"VaultTecMediaOptimizerOxipngLevel": {
+			"value": "2",
+			"description": "oxipng optimization level: '0'-'6' or 'max'. 2 is a good speed/size balance; higher is slower for marginal gains."
+		},
+		"VaultTecMediaOptimizerFormats": {
+			"value": [
+				"image/png",
+				"image/jpeg",
+				"image/gif"
+			],
+			"description": "MIME types to process."
+		},
+		"VaultTecMediaOptimizerStripMetadata": {
+			"value": true,
+			"description": "Remove EXIF/XMP/comments during optimization."
+		},
+		"VaultTecMediaOptimizerProcessThumbnails": {
+			"value": true,
+			"description": "Generate WebP for thumbnails as they are created (uses OutputPageBeforeHTML rewriting)."
+		},
+		"VaultTecMediaOptimizerBackfillBatchSize": {
+			"value": 20,
+			"description": "Number of jobs scheduled per backfill batch (web request)."
+		},
+		"VaultTecMediaOptimizerMaxFileSize": {
+			"value": 52428800,
+			"description": "Skip files larger than this (bytes). Default 50MB."
+		}
+	},
+	"manifest_version": 2
+}

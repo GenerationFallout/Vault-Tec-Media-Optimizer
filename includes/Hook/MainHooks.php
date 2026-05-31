@@ -1,0 +1,288 @@
+<?php
+
+namespace MediaWiki\Extension\VaultTecMediaOptimizer\Hook;
+
+use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PngRecompressorInterface;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\OptimizationRecord;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\WebPRepo;
+use MediaWiki\Hook\FileDeleteCompleteHook;
+use MediaWiki\Hook\FileTransformedHook;
+use MediaWiki\Hook\FileUploadHook;
+use MediaWiki\JobQueue\JobQueueGroup;
+use MediaWiki\JobQueue\JobSpecification;
+use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\Output\Hook\OutputPageBeforeHTMLHook;
+use MediaWiki\Title\Title;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
+use Throwable;
+
+/**
+ * Main runtime hook handler for VaultTecMediaOptimizer.
+ *
+ * - FileUpload: enqueues a background job to optimize the new original file.
+ * - FileTransformed: when MediaWiki generates a thumbnail, also produce the
+ *   WebP version next to it so the rewriter can serve it.
+ * - FileDeleteComplete: cleans up the WebP file and the DB record.
+ * - OutputPageBeforeHTML: rewrites <img> -> <picture> for served pages.
+ */
+class MainHooks implements
+	FileUploadHook,
+	FileDeleteCompleteHook,
+	FileTransformedHook,
+	OutputPageBeforeHTMLHook
+{
+	private HtmlRewriter $htmlRewriter;
+	private OptimizationRecord $record;
+	private WebPRepo $webpRepo;
+	private OptimizerFactory $optimizerFactory;
+	private ServiceOptions $options;
+	private JobQueueGroup $jobQueueGroup;
+	private PngRecompressorInterface $zopfli;
+	private LoggerInterface $logger;
+
+	public function __construct(
+		HtmlRewriter $htmlRewriter,
+		OptimizationRecord $record,
+		WebPRepo $webpRepo,
+		OptimizerFactory $optimizerFactory,
+		ServiceOptions $options,
+		JobQueueGroup $jobQueueGroup,
+		PngRecompressorInterface $zopfli
+	) {
+		$this->htmlRewriter = $htmlRewriter;
+		$this->record = $record;
+		$this->webpRepo = $webpRepo;
+		$this->optimizerFactory = $optimizerFactory;
+		$this->options = $options;
+		$this->jobQueueGroup = $jobQueueGroup;
+		$this->zopfli = $zopfli;
+		$this->logger = LoggerFactory::getInstance( 'VaultTecMediaOptimizer' );
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * Called after a successful upload. Enqueues a background job to optimize
+	 * the new file. We use a job rather than inline processing so the upload
+	 * response stays fast.
+	 */
+	public function onFileUpload( $file, $reupload, $hasDescription ) {
+		if ( !$this->options->get( 'VaultTecMediaOptimizerEnabled' ) ) {
+			return;
+		}
+
+		$imgName = $file->getName();
+
+		// Only enqueue if the file's MIME type matches what we handle.
+		// (Cheap optimization to avoid clogging the queue with PDFs etc.)
+		$mime = $file->getMimeType();
+		$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
+		if ( !in_array( $mime, $allowedMimes, true ) ) {
+			return;
+		}
+
+		$title = Title::makeTitleSafe( NS_FILE, $imgName );
+		if ( !$title ) {
+			return;
+		}
+
+		$this->jobQueueGroup->push(
+			new JobSpecification(
+				'VaultTecMediaOptimizerOptimizeImage',
+				[ 'imgName' => $imgName ],
+				[ 'removeDuplicates' => true ],
+				$title
+			)
+		);
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * Cleans up the WebP file and DB record on deletion of the original.
+	 */
+	public function onFileDeleteComplete( $file, $oldimage, $article, $user, $reason ) {
+		$imgName = $file->getName();
+
+		// Reconstruct the filesystem path the same way we do in ImageProcessor:
+		// $wgUploadDirectory + getRel(). Avoids the mwstore:// URL that
+		// $file->getPath() returns, which would not match our WebP lookup.
+		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
+		$rel = $file->getRel();
+		if ( is_string( $rel ) && $rel !== '' ) {
+			$path = $uploadDir . '/' . $rel;
+			try {
+				$this->webpRepo->deleteWebP( $path );
+			} catch ( Throwable $e ) {
+				// Best-effort: log and move on. We don't want to block the
+				// deletion if WebP cleanup fails (disk error, perms, etc.).
+				$this->logger->warning( 'WebP cleanup failed for {name}: {msg}', [
+					'name' => $imgName,
+					'msg' => $e->getMessage(),
+				] );
+			}
+		}
+
+		$this->record->delete( $imgName );
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * Called every time MediaWiki generates a thumbnail. We generate the
+	 * matching WebP version next to the thumbnail so the HtmlRewriter can
+	 * serve it via <picture>.
+	 *
+	 * This runs synchronously during page render, but only for newly-generated
+	 * thumbs (existing thumbs are cached and won't re-trigger this hook).
+	 * For a typical 200KB thumb the WebP encode takes <50ms.
+	 *
+	 * We work entirely with the tmpThumbPath (filesystem path, guaranteed)
+	 * and write into our parallel images_webp/ tree.
+	 */
+	public function onFileTransformed( $file, $thumb, $tmpThumbPath, $thumbPath ) {
+		if ( !$this->options->get( 'VaultTecMediaOptimizerEnabled' )
+			|| !$this->options->get( 'VaultTecMediaOptimizerProcessThumbnails' )
+		) {
+			return true;
+		}
+
+		// Only handle MIME types we care about
+		$mime = $file->getMimeType();
+		$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
+		if ( !in_array( $mime, $allowedMimes, true ) ) {
+			return true;
+		}
+
+		// We read from tmpThumbPath (always a filesystem path — guaranteed by
+		// File::transform's own logic, since it just wrote the file there).
+		if ( !is_string( $tmpThumbPath ) || !is_file( $tmpThumbPath ) ) {
+			return true;
+		}
+
+		// Where do we write the WebP?
+		//
+		// $thumbPath is the FileBackend STORAGE path. On non-trivial backends
+		// (and even on LocalRepo where it returns "mwstore://local-backend/local-thumb/...")
+		// it's a virtual URL, NOT a filesystem path. So we can't just substitute
+		// $uploadDir with $webpDir.
+		//
+		// Instead, we rely on the public URL of the thumbnail. MediaTransformOutput::getUrl()
+		// returns something like "/images/thumb/a/ab/File.png/220px-File.png" OR
+		// "/thumb.php?f=File.png&width=220". Both forms are handled by
+		// WebPRepo::getWebPUrlAndPath(), which gives us the matching WebP
+		// filesystem destination inside images_webp/.
+		$thumbUrl = method_exists( $thumb, 'getUrl' ) ? $thumb->getUrl() : null;
+		if ( !is_string( $thumbUrl ) || $thumbUrl === '' ) {
+			$this->logger->debug( 'onFileTransformed: no thumb URL for {name}, skipping',
+				[ 'name' => $file->getName() ] );
+			return true;
+		}
+
+		$webpInfo = $this->webpRepo->getWebPUrlAndPath( $thumbUrl );
+		if ( $webpInfo === null ) {
+			$this->logger->debug( 'onFileTransformed: thumb URL did not resolve to a WebP path: {url}',
+				[ 'url' => $thumbUrl ] );
+			return true;
+		}
+		[ , $webpDest ] = $webpInfo;
+
+		// Don't regenerate if already present
+		if ( is_file( $webpDest ) ) {
+			return true;
+		}
+
+		if ( !$this->webpRepo->ensureDirFor( $webpDest ) ) {
+			$this->logger->warning( 'Could not create WebP thumb directory for {dest}',
+				[ 'dest' => $webpDest ] );
+			return true;
+		}
+
+		try {
+			$optimizer = $this->optimizerFactory->getOptimizer();
+			$lossless = ( $mime === 'image/png' )
+				&& $this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
+			$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+
+			$ok = $optimizer->convertToWebP( $tmpThumbPath, $webpDest, $lossless, $quality );
+			if ( !$ok ) {
+				$detail = $optimizer->getLastError() ?? 'no detail';
+				$this->logger->warning( 'WebP thumb generation failed for {name} ({dest}): {detail}', [
+					'name' => $file->getName(),
+					'dest' => $webpDest,
+					'detail' => $detail,
+				] );
+			} else {
+				$this->logger->debug( 'Generated WebP thumb {dest}',
+					[ 'dest' => $webpDest ] );
+			}
+		} catch ( RuntimeException $e ) {
+			$this->logger->warning( 'WebP thumb generation failed for {name}: {msg}', [
+				'name' => $file->getName(),
+				'msg' => $e->getMessage(),
+			] );
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Unexpected error generating WebP thumb for {name}: {msg}', [
+				'name' => $file->getName(),
+				'msg' => $e->getMessage(),
+			] );
+		}
+
+		// Second pass: losslessly recompress the thumbnail PNG itself with
+		// zopflipng (approach B — keep thumbnails optimized even after MW
+		// regenerates them). Only for PNG thumbnails, only if zopflipng is
+		// available. The thumbnail on disk is $tmpThumbPath (the file MW just
+		// wrote). Savings are tracked in the aggregate thumb-stats table.
+		if ( $mime === 'image/png' && $this->zopfli->isAvailable() ) {
+			try {
+				$saved = $this->zopfli->recompress( $tmpThumbPath );
+				if ( $saved === null ) {
+					$this->logger->debug( 'Zopfli thumb recompression failed for {name}: {err}', [
+						'name' => $file->getName(),
+						'err' => $this->zopfli->getLastError() ?? 'unknown',
+					] );
+				} elseif ( $saved > 0 ) {
+					$this->record->addThumbZopfliSaving( $saved );
+					$this->logger->debug( 'Zopfli saved {bytes} bytes on thumb {name}', [
+						'bytes' => $saved,
+						'name' => $file->getName(),
+					] );
+				}
+			} catch ( Throwable $e ) {
+				$this->logger->debug( 'Zopfli thumb recompression error for {name}: {msg}', [
+					'name' => $file->getName(),
+					'msg' => $e->getMessage(),
+				] );
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * Wraps <img> tags pointing to local images in a <picture> element with
+	 * a WebP source. The <img> stays as fallback, preserving compatibility
+	 * with MultimediaViewer, lazy-loading, and other JS that targets <img>.
+	 *
+	 * Only runs on the 'view' action to avoid rewriting previews, diffs, and
+	 * edit forms, where users may see in-progress content that doesn't
+	 * correspond to existing WebP files (the lookups would all miss and the
+	 * regex would run for nothing).
+	 */
+	public function onOutputPageBeforeHTML( $out, &$text ) {
+		// OutputPage extends ContextSource, so getActionName() is directly available.
+		$action = $out->getActionName();
+		// Skip non-view actions: edit, history, diff, raw, info, etc.
+		if ( $action !== 'view' ) {
+			return true;
+		}
+		$this->htmlRewriter->rewrite( $text );
+		return true;
+	}
+}
