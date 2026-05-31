@@ -8,6 +8,7 @@ use MediaWiki\JobQueue\JobQueueGroup;
 use MediaWiki\JobQueue\JobSpecification;
 use MediaWiki\Title\Title;
 use Psr\Log\LoggerInterface;
+use Wikimedia\ObjectCache\WANObjectCache;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 /**
@@ -21,10 +22,17 @@ use Wikimedia\Rdbms\IConnectionProvider;
  */
 class BackfillScheduler {
 
+	/** Cache TTL for the eligible/pending counts (seconds). The dashboard
+	 *  auto-refreshes every 10s; without this each refresh re-ran a LEFT JOIN
+	 *  COUNT over the whole image table. The counts only drift as jobs run, so a
+	 *  few seconds of staleness is invisible in practice. */
+	private const COUNT_TTL = 10;
+
 	private ServiceOptions $options;
 	private OptimizationRecord $record;
 	private IConnectionProvider $connectionProvider;
 	private JobQueueGroup $jobQueueGroup;
+	private WANObjectCache $cache;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -32,12 +40,14 @@ class BackfillScheduler {
 		OptimizationRecord $record,
 		IConnectionProvider $connectionProvider,
 		JobQueueGroup $jobQueueGroup,
+		WANObjectCache $cache,
 		LoggerInterface $logger
 	) {
 		$this->options = $options;
 		$this->record = $record;
 		$this->connectionProvider = $connectionProvider;
 		$this->jobQueueGroup = $jobQueueGroup;
+		$this->cache = $cache;
 		$this->logger = $logger;
 	}
 
@@ -118,47 +128,64 @@ class BackfillScheduler {
 
 	/**
 	 * Count of files still needing processing (estimate, may be slow on huge wikis).
+	 *
+	 * Cached for {@see self::COUNT_TTL}s: this is a LEFT JOIN COUNT over the whole
+	 * image table, re-hit on every dashboard auto-refresh.
 	 */
 	public function countPending(): int {
-		$db = $this->connectionProvider->getReplicaDatabase();
-		$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
+		return $this->cache->getWithSetCallback(
+			$this->cache->makeKey( 'vtmo-count-pending' ),
+			self::COUNT_TTL,
+			function () {
+				$db = $this->connectionProvider->getReplicaDatabase();
+				$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
 
-		$pendingExpr = $db->expr( 'io_status', '=', null )
-			->orExpr( $db->expr( 'io_status', '=', OptimizationRecord::STATUS_PENDING ) );
+				$pendingExpr = $db->expr( 'io_status', '=', null )
+					->orExpr( $db->expr( 'io_status', '=', OptimizationRecord::STATUS_PENDING ) );
 
-		$queryBuilder = $db->newSelectQueryBuilder()
-			->select( 'COUNT(*)' )
-			->from( 'image' )
-			->leftJoin( 'vtmo_image_optimization', null, 'io_img_name = img_name' )
-			->where( $pendingExpr )
-			->caller( __METHOD__ );
+				$queryBuilder = $db->newSelectQueryBuilder()
+					->select( 'COUNT(*)' )
+					->from( 'image' )
+					->leftJoin( 'vtmo_image_optimization', null, 'io_img_name = img_name' )
+					->where( $pendingExpr )
+					->caller( __METHOD__ );
 
-		$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
-		if ( $mimeExpr !== null ) {
-			$queryBuilder->andWhere( $mimeExpr );
-		}
+				$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
+				if ( $mimeExpr !== null ) {
+					$queryBuilder->andWhere( $mimeExpr );
+				}
 
-		return (int)$queryBuilder->fetchField();
+				return (int)$queryBuilder->fetchField();
+			}
+		);
 	}
 
 	/**
 	 * Count of files total eligible (regardless of status) by MIME.
+	 *
+	 * Cached for {@see self::COUNT_TTL}s; only changes on upload/delete.
 	 */
 	public function countTotalEligible(): int {
-		$db = $this->connectionProvider->getReplicaDatabase();
-		$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
+		return $this->cache->getWithSetCallback(
+			$this->cache->makeKey( 'vtmo-count-eligible' ),
+			self::COUNT_TTL,
+			function () {
+				$db = $this->connectionProvider->getReplicaDatabase();
+				$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
 
-		$queryBuilder = $db->newSelectQueryBuilder()
-			->select( 'COUNT(*)' )
-			->from( 'image' )
-			->caller( __METHOD__ );
+				$queryBuilder = $db->newSelectQueryBuilder()
+					->select( 'COUNT(*)' )
+					->from( 'image' )
+					->caller( __METHOD__ );
 
-		$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
-		if ( $mimeExpr !== null ) {
-			$queryBuilder->where( $mimeExpr );
-		}
+				$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
+				if ( $mimeExpr !== null ) {
+					$queryBuilder->where( $mimeExpr );
+				}
 
-		return (int)$queryBuilder->fetchField();
+				return (int)$queryBuilder->fetchField();
+			}
+		);
 	}
 
 	/**

@@ -40,6 +40,7 @@ return [
 				'VaultTecMediaOptimizerProcessThumbnails',
 				'VaultTecMediaOptimizerBackfillBatchSize',
 				'VaultTecMediaOptimizerMaxFileSize',
+				'VaultTecMediaOptimizerOnDemandThumbLimit',
 				'UploadDirectory',
 				'UploadPath',
 			],
@@ -136,6 +137,7 @@ return [
 			$services->getService( 'VaultTecMediaOptimizer.OptimizationRecord' ),
 			$services->getConnectionProvider(),
 			$services->getJobQueueGroup(),
+			$services->getMainWANObjectCache(),
 			LoggerFactory::getInstance( 'VaultTecMediaOptimizer' )
 		);
 	},

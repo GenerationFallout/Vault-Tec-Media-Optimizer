@@ -176,6 +176,10 @@
 		"VaultTecMediaOptimizerMaxFileSize": {
 			"value": 52428800,
 			"description": "Skip files larger than this (bytes). Default 50MB."
+		},
+		"VaultTecMediaOptimizerOnDemandThumbLimit": {
+			"value": 5,
+			"description": "Maximum number of missing thumbnail WebP files generated synchronously during a single page render (on-demand warm-up). Caps worst-case render latency on cold caches; thumbnails beyond the limit get their WebP on a later view or when MediaWiki regenerates them. Set to 0 to disable on-demand generation entirely (rely solely on the FileTransformed hook)."
 		}
 	},
 	"manifest_version": 2

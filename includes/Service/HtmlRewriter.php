@@ -49,6 +49,13 @@ class HtmlRewriter {
 	private OptimizerFactory $optimizerFactory;
 	private LoggerInterface $logger;
 
+	/**
+	 * Remaining budget of synchronous on-demand WebP generations for the current
+	 * rewrite() call. Reset at the start of each call. Bounds worst-case render
+	 * latency when many thumbnails still lack a WebP (cold cache).
+	 */
+	private int $onDemandRemaining = 0;
+
 	public function __construct(
 		ServiceOptions $options,
 		WebPRepo $webpRepo,
@@ -80,6 +87,11 @@ class HtmlRewriter {
 		if ( strpos( $text, '<img' ) === false ) {
 			return;
 		}
+
+		// Reset the per-render budget for synchronous on-demand WebP generation.
+		// Existing WebP files are always served; this only caps how many *missing*
+		// ones we encode inline during this single page render.
+		$this->onDemandRemaining = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
 
 		// Find all <img ... src="..." ...> with their offsets in the original text.
 		// We capture both the full tag and the src URL, plus the byte offset of
@@ -215,6 +227,16 @@ class HtmlRewriter {
 			return false;
 		}
 
+		// Budget guard (P1): cap how many missing WebP files we encode inline
+		// during this single render. Once the budget is spent, leave the <img>
+		// untouched — its WebP will be generated on a subsequent view (or by the
+		// FileTransformed hook when MediaWiki next regenerates the thumbnail),
+		// so the cache still warms up, just without front-loading the cost onto
+		// one unlucky visitor.
+		if ( $this->onDemandRemaining <= 0 ) {
+			return false;
+		}
+
 		// Determine MIME from the source thumbnail extension. We only handle
 		// the formats this extension targets; anything else is left as-is.
 		$ext = strtolower( pathinfo( $srcThumbPath, PATHINFO_EXTENSION ) );
@@ -240,6 +262,9 @@ class HtmlRewriter {
 				[ 'dest' => $webpPath ] );
 			return false;
 		}
+
+		// We are committing to an encode: spend one unit of the render budget.
+		$this->onDemandRemaining--;
 
 		try {
 			$optimizer = $this->optimizerFactory->getOptimizer();
