@@ -199,6 +199,24 @@ class ImageProcessor {
 				$webpSize = 0;
 			}
 
+			// 3b. Experimental AVIF copy of the original, served before WebP to
+			// capable browsers. Best-effort and not tracked in the stats table:
+			// a failure here never affects the WebP result or the recorded row.
+			if ( $this->options->get( 'VaultTecMediaOptimizerAvifEnabled' )
+				&& $optimizer->supportsAvif()
+			) {
+				$avifPath = $this->webpRepo->getAvifPath( $path );
+				if ( $avifPath !== null && $this->webpRepo->ensureDirFor( $avifPath ) ) {
+					$avifQuality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
+					if ( !$optimizer->convertToAvif( $path, $avifPath, $avifQuality ) ) {
+						$this->logger->debug( 'AVIF original generation failed for {name}: {err}', [
+							'name' => $imgName,
+							'err' => $optimizer->getLastError() ?? 'no detail',
+						] );
+					}
+				}
+			}
+
 			// 4. Record success
 			$this->record->markComplete(
 				$imgName,

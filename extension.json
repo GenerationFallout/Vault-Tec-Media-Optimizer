@@ -180,6 +180,18 @@
 		"VaultTecMediaOptimizerOnDemandThumbLimit": {
 			"value": 5,
 			"description": "Maximum number of missing thumbnail WebP files generated synchronously during a single page render (on-demand warm-up). Caps worst-case render latency on cold caches; thumbnails beyond the limit get their WebP on a later view or when MediaWiki regenerates them. Set to 0 to disable on-demand generation entirely (rely solely on the FileTransformed hook)."
+		},
+		"VaultTecMediaOptimizerAvifEnabled": {
+			"value": false,
+			"description": "EXPERIMENTAL. Generate AVIF copies in addition to WebP and serve them to browsers that support AVIF (offered before WebP inside the <picture> element, so capable browsers pick AVIF and the rest fall back to WebP, then to the original). AVIF compresses better than WebP but encodes much more slowly. Requires Imagick built with AVIF (libheif/libaom) or PHP-GD with imageavif(). Off by default."
+		},
+		"VaultTecMediaOptimizerAvifDirectory": {
+			"value": "images_avif",
+			"description": "Directory name (sibling of images/) where AVIF copies are stored. Allows clean uninstall by simply removing this directory."
+		},
+		"VaultTecMediaOptimizerAvifQuality": {
+			"value": 50,
+			"description": "Quality for AVIF encoding (0-100). AVIF quality is not directly comparable to JPEG/WebP; roughly 45-55 is visually equivalent to WebP 80-85 at a smaller size. Alpha (transparency) is preserved."
 		}
 	},
 	"manifest_version": 2

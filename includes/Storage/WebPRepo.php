@@ -6,15 +6,22 @@ use MediaWiki\Config\ServiceOptions;
 use Psr\Log\LoggerInterface;
 
 /**
- * Manages the WebP file storage directory.
+ * Manages the storage directories for the derived image formats (WebP and,
+ * experimentally, AVIF).
  *
- * Layout (mirror of images/):
+ * Layout (each format mirrors images/ in its own sibling directory):
  *   $wgUploadDirectory/../images_webp/
  *     a/ab/Original.webp                    <- WebP of File:Original.png
  *     thumb/a/ab/Original.png/
  *       220px-Original.webp                 <- WebP of 220px thumbnail
+ *   $wgUploadDirectory/../images_avif/      <- same tree, .avif extension
  *
- * This isolation makes uninstall a single `rm -rf images_webp/` away.
+ * Keeping each format in its own directory makes uninstall a single
+ * `rm -rf images_webp/ images_avif/` away.
+ *
+ * The path logic is identical across formats, so the heavy lifting lives in
+ * format-agnostic private helpers parameterized by (extension, directory name);
+ * the public WebP/AVIF methods are thin wrappers over them.
  */
 class WebPRepo {
 
@@ -30,13 +37,26 @@ class WebPRepo {
 	 * Get the root WebP directory (absolute filesystem path).
 	 */
 	public function getRootDir(): string {
+		return $this->rootDirFor( $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' ) );
+	}
+
+	/**
+	 * Get the root AVIF directory (absolute filesystem path).
+	 */
+	public function getAvifRootDir(): string {
+		return $this->rootDirFor( $this->options->get( 'VaultTecMediaOptimizerAvifDirectory' ) );
+	}
+
+	/**
+	 * Compute a root directory (sibling of the upload dir) for a derived format.
+	 */
+	private function rootDirFor( string $dirName ): string {
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
-		$webpDirName = $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
 		$parent = dirname( $uploadDir );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
-			return '/' . $webpDirName;
+			return '/' . $dirName;
 		}
-		return $parent . '/' . $webpDirName;
+		return $parent . '/' . $dirName;
 	}
 
 	/**
@@ -54,13 +74,23 @@ class WebPRepo {
 	 * it IS just '/').
 	 */
 	public function getRootUrl(): string {
+		return $this->rootUrlFor( $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' ) );
+	}
+
+	/**
+	 * Get the root AVIF URL prefix (for serving in HTML).
+	 */
+	public function getAvifRootUrl(): string {
+		return $this->rootUrlFor( $this->options->get( 'VaultTecMediaOptimizerAvifDirectory' ) );
+	}
+
+	private function rootUrlFor( string $dirName ): string {
 		$uploadPath = rtrim( $this->options->get( 'UploadPath' ), '/' );
-		$webpDirName = $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
 		$parent = dirname( $uploadPath );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
-			return '/' . $webpDirName;
+			return '/' . $dirName;
 		}
-		return $parent . '/' . $webpDirName;
+		return $parent . '/' . $dirName;
 	}
 
 	/**
@@ -71,6 +101,25 @@ class WebPRepo {
 	 *                             null if path is outside the upload directory
 	 */
 	public function getWebPPath( string $originalPath ): ?string {
+		return $this->derivedPathFor( $originalPath, 'webp', $this->getRootDir() );
+	}
+
+	/**
+	 * Compute the AVIF filesystem path for a given original file path.
+	 */
+	public function getAvifPath( string $originalPath ): ?string {
+		return $this->derivedPathFor( $originalPath, 'avif', $this->getAvifRootDir() );
+	}
+
+	/**
+	 * Compute the derived-format filesystem path for a given original file path.
+	 *
+	 * @param string $originalPath
+	 * @param string $ext Target extension ('webp' | 'avif')
+	 * @param string $rootDir Root directory for that format
+	 * @return string|null null if the path is outside the upload directory
+	 */
+	private function derivedPathFor( string $originalPath, string $ext, string $rootDir ): ?string {
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
 
 		// Normalize and check the original is inside the upload directory
@@ -91,8 +140,8 @@ class WebPRepo {
 		}
 
 		$relative = ltrim( $relative, '/' );
-		$webpRelative = $this->replaceExtension( $relative, 'webp' );
-		return $this->getRootDir() . '/' . $webpRelative;
+		$derivedRelative = $this->replaceExtension( $relative, $ext );
+		return $rootDir . '/' . $derivedRelative;
 	}
 
 	/**
@@ -113,14 +162,40 @@ class WebPRepo {
 	 *
 	 * @param string $originalUrl E.g. /images/a/ab/File.png, /images/thumb/a/ab/File.png/220px-File.png,
 	 *                            /thumb.php?f=File.png&width=220, or a full URL containing those.
-	 * @return array{0: string, 1: string}|null [webpUrl, webpDiskPath], or null
+	 * @return array{0: string, 1: string, 2?: string}|null [webpUrl, webpDiskPath, srcThumbPath], or null
 	 *                                          if the URL is not from the upload area
 	 */
 	public function getWebPUrlAndPath( string $originalUrl ): ?array {
+		return $this->derivedUrlAndPath(
+			$originalUrl, 'webp', $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' )
+		);
+	}
+
+	/**
+	 * Compute both the AVIF URL and on-disk path for an original file URL.
+	 *
+	 * @param string $originalUrl
+	 * @return array{0: string, 1: string, 2?: string}|null [avifUrl, avifDiskPath, srcThumbPath]
+	 */
+	public function getAvifUrlAndPath( string $originalUrl ): ?array {
+		return $this->derivedUrlAndPath(
+			$originalUrl, 'avif', $this->options->get( 'VaultTecMediaOptimizerAvifDirectory' )
+		);
+	}
+
+	/**
+	 * Format-agnostic core of {@see getWebPUrlAndPath}/{@see getAvifUrlAndPath}.
+	 *
+	 * @param string $originalUrl
+	 * @param string $ext Target extension ('webp' | 'avif')
+	 * @param string $dirName Directory name for that format
+	 * @return array{0: string, 1: string, 2?: string}|null
+	 */
+	private function derivedUrlAndPath( string $originalUrl, string $ext, string $dirName ): ?array {
 		// Branch 1: thumb.php?f=NAME&width=W (or &w=W) — common when
 		// $wgGenerateThumbnailOnParse is disabled and apache rewrites
 		// requests to thumb.php
-		$thumbPhpResult = $this->resolveThumbPhpUrl( $originalUrl );
+		$thumbPhpResult = $this->resolveThumbPhpUrl( $originalUrl, $ext, $dirName );
 		if ( $thumbPhpResult !== null ) {
 			return $thumbPhpResult;
 		}
@@ -153,7 +228,7 @@ class WebPRepo {
 		$relativeDecoded = $this->decodePath( $relative );
 
 		// Security: after decoding, reject any traversal sequence. The decoded
-		// relative path is used to build a source path we read from and a WebP
+		// relative path is used to build a source path we read from and a derived
 		// path we write to, so "%2e%2e/" style escapes must not slip through.
 		if ( strpos( $relativeDecoded, '..' ) !== false
 			|| strpos( $relativeDecoded, "\0" ) !== false
@@ -161,37 +236,37 @@ class WebPRepo {
 			return null;
 		}
 
-		$webpRelativeDecoded = $this->replaceExtension( $relativeDecoded, 'webp' );
-		$webpRelativeEncoded = $this->encodePath( $webpRelativeDecoded );
+		$derivedRelativeDecoded = $this->replaceExtension( $relativeDecoded, $ext );
+		$derivedRelativeEncoded = $this->encodePath( $derivedRelativeDecoded );
 
-		$rootDir = $this->getRootDir();
-		$webpDiskRelative = $this->resolveDiskVariant( $rootDir, $webpRelativeDecoded, $webpRelativeEncoded );
+		$rootDir = $this->rootDirFor( $dirName );
+		$derivedDiskRelative = $this->resolveDiskVariant( $rootDir, $derivedRelativeDecoded, $derivedRelativeEncoded );
 
 		// URL — must be percent-encoded
 		if ( $originalUrl !== $path ) {
 			// Recompute the prefix that was stripped (handles "https://host/" + path)
 			$prefixLen = strlen( $originalUrl ) - strlen( $relative ) - strlen( $uploadPath ) - 1;
 			$origin = substr( $originalUrl, 0, max( 0, $prefixLen ) );
-			$webpUrl = $origin . $this->getRootUrl() . '/' . $webpRelativeEncoded;
+			$derivedUrl = $origin . $this->rootUrlFor( $dirName ) . '/' . $derivedRelativeEncoded;
 		} else {
-			$webpUrl = $this->getRootUrl() . '/' . $webpRelativeEncoded;
+			$derivedUrl = $this->rootUrlFor( $dirName ) . '/' . $derivedRelativeEncoded;
 		}
 
 		// Disk path — resolved to whichever encoding exists on this backend
-		$webpDiskPath = $rootDir . '/' . $webpDiskRelative;
+		$derivedDiskPath = $rootDir . '/' . $derivedDiskRelative;
 
 		// Source path: the original file/thumbnail under the upload directory,
-		// same relative path, original extension. Used for on-demand WebP
-		// generation when the WebP is missing.
+		// same relative path, original extension. Used for on-demand generation
+		// when the derived file is missing.
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
 		$srcRelative = $this->resolveDiskVariant( $uploadDir, $relativeDecoded, $this->encodePath( $relativeDecoded ) );
 		$srcThumbPath = $uploadDir . '/' . $srcRelative;
 
-		return [ $webpUrl, $webpDiskPath, $srcThumbPath ];
+		return [ $derivedUrl, $derivedDiskPath, $srcThumbPath ];
 	}
 
 	/**
-	 * Try to resolve a thumb.php URL into a WebP url + disk path.
+	 * Try to resolve a thumb.php URL into a derived url + disk path.
 	 *
 	 * Expected forms:
 	 *   /thumb.php?f=FILENAME&width=W
@@ -202,9 +277,12 @@ class WebPRepo {
 	 *   images/thumb/<a>/<ab>/<FILENAME>/<W>px-<FILENAME>
 	 * where <a> and <ab> are derived from md5(FILENAME).
 	 *
-	 * @return array{0: string, 1: string}|null [webpUrl, webpDiskPath]
+	 * @param string $url
+	 * @param string $ext Target extension ('webp' | 'avif')
+	 * @param string $dirName Directory name for that format
+	 * @return array{0: string, 1: string, 2?: string}|null [derivedUrl, derivedDiskPath, srcThumbPath]
 	 */
-	private function resolveThumbPhpUrl( string $url ): ?array {
+	private function resolveThumbPhpUrl( string $url, string $ext, string $dirName ): ?array {
 		// Quick gate
 		if ( strpos( $url, 'thumb.php' ) === false ) {
 			return null;
@@ -225,7 +303,7 @@ class WebPRepo {
 		// Security: reject anything that could escape the thumb directory.
 		// MediaWiki file names never contain slashes or "..". Since $fileName
 		// is now used to build a path we read from and write to (on-demand
-		// WebP generation), a traversal sequence here could touch files
+		// generation), a traversal sequence here could touch files
 		// outside the upload tree. Reject defensively.
 		if ( strpos( $fileName, '/' ) !== false
 			|| strpos( $fileName, '\\' ) !== false
@@ -263,28 +341,28 @@ class WebPRepo {
 		$decodedName = $fileName;
 		$encodedName = rawurlencode( $fileName );
 
-		$webpThumbDecoded = $this->replaceExtension( $width . 'px-' . $decodedName, 'webp' );
-		$webpThumbEncoded = $this->replaceExtension( $width . 'px-' . $encodedName, 'webp' );
+		$derivedThumbDecoded = $this->replaceExtension( $width . 'px-' . $decodedName, $ext );
+		$derivedThumbEncoded = $this->replaceExtension( $width . 'px-' . $encodedName, $ext );
 
-		$relDecoded = 'thumb/' . $hashDir . '/' . $decodedName . '/' . $webpThumbDecoded;
-		$relEncoded = 'thumb/' . $hashDir . '/' . $encodedName . '/' . $webpThumbEncoded;
+		$relDecoded = 'thumb/' . $hashDir . '/' . $decodedName . '/' . $derivedThumbDecoded;
+		$relEncoded = 'thumb/' . $hashDir . '/' . $encodedName . '/' . $derivedThumbEncoded;
 
-		$rootDir = $this->getRootDir();
-		$webpRelative = $this->resolveDiskVariant( $rootDir, $relDecoded, $relEncoded );
+		$rootDir = $this->rootDirFor( $dirName );
+		$derivedRelative = $this->resolveDiskVariant( $rootDir, $relDecoded, $relEncoded );
 
 		// For the URL exposed to browsers, special characters must always be
 		// percent-encoded so the URL is valid, regardless of the disk layout.
-		$encodedWebpThumbName = rawurlencode( $this->replaceExtension( $width . 'px-' . $fileName, 'webp' ) );
-		$webpUrlRelative = 'thumb/' . $hashDir . '/' . $encodedName . '/' . $encodedWebpThumbName;
+		$encodedDerivedThumbName = rawurlencode( $this->replaceExtension( $width . 'px-' . $fileName, $ext ) );
+		$derivedUrlRelative = 'thumb/' . $hashDir . '/' . $encodedName . '/' . $encodedDerivedThumbName;
 
-		$webpUrl = $this->getRootUrl() . '/' . $webpUrlRelative;
-		$webpDiskPath = $rootDir . '/' . $webpRelative;
+		$derivedUrl = $this->rootUrlFor( $dirName ) . '/' . $derivedUrlRelative;
+		$derivedDiskPath = $rootDir . '/' . $derivedRelative;
 
 		// Also compute the path to the SOURCE thumbnail (the PNG/JPEG/GIF the
-		// browser is currently being served), so callers can generate the WebP
-		// on demand if it is missing. The source thumbnail lives under the
+		// browser is currently being served), so callers can generate the derived
+		// file on demand if it is missing. The source thumbnail lives under the
 		// upload directory, in the same thumb/<hash>/<name>/ layout, but with
-		// the ORIGINAL extension (not .webp).
+		// the ORIGINAL extension.
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
 		$srcThumbDecoded = $width . 'px-' . $decodedName;
 		$srcThumbEncoded = $width . 'px-' . $encodedName;
@@ -293,14 +371,14 @@ class WebPRepo {
 		$srcRelative = $this->resolveDiskVariant( $uploadDir, $srcRelDecoded, $srcRelEncoded );
 		$srcThumbPath = $uploadDir . '/' . $srcRelative;
 
-		return [ $webpUrl, $webpDiskPath, $srcThumbPath ];
+		return [ $derivedUrl, $derivedDiskPath, $srcThumbPath ];
 	}
 
 	/**
 	 * Given two candidate relative paths (decoded vs URL-encoded filename),
 	 * return whichever exists on disk under $rootDir. If neither exists yet
-	 * (e.g. the WebP hasn't been generated), fall back to the decoded form,
-	 * which is what MediaWiki uses on the majority of filesystem backends.
+	 * (e.g. the derived file hasn't been generated), fall back to the decoded
+	 * form, which is what MediaWiki uses on the majority of filesystem backends.
 	 *
 	 * This makes path resolution robust across different FileBackend
 	 * configurations without requiring per-wiki tuning.
@@ -329,18 +407,18 @@ class WebPRepo {
 	}
 
 	/**
-	 * Ensure the parent directory of a WebP file exists.
+	 * Ensure the parent directory of a derived file exists.
 	 * Returns true on success.
 	 */
-	public function ensureDirFor( string $webpPath ): bool {
-		$dir = dirname( $webpPath );
+	public function ensureDirFor( string $derivedPath ): bool {
+		$dir = dirname( $derivedPath );
 		if ( is_dir( $dir ) ) {
 			return true;
 		}
 		// Use the same perm scheme as MediaWiki's upload dir
 		$ok = @mkdir( $dir, 0755, true );
 		if ( !$ok && !is_dir( $dir ) ) {
-			$this->logger->error( 'Failed to create WebP directory {dir}', [ 'dir' => $dir ] );
+			$this->logger->error( 'Failed to create derived directory {dir}', [ 'dir' => $dir ] );
 			return false;
 		}
 		return true;
@@ -388,14 +466,25 @@ class WebPRepo {
 	 * Used on file deletion to keep storage tidy.
 	 */
 	public function deleteWebP( string $originalPath ): bool {
-		$webpPath = $this->getWebPPath( $originalPath );
-		if ( $webpPath === null || !file_exists( $webpPath ) ) {
+		return $this->deleteDerived( $originalPath, 'webp', $this->getRootDir() );
+	}
+
+	/**
+	 * Delete the AVIF file (and its parent dir if empty) for a given original.
+	 */
+	public function deleteAvif( string $originalPath ): bool {
+		return $this->deleteDerived( $originalPath, 'avif', $this->getAvifRootDir() );
+	}
+
+	private function deleteDerived( string $originalPath, string $ext, string $rootDir ): bool {
+		$path = $this->derivedPathFor( $originalPath, $ext, $rootDir );
+		if ( $path === null || !file_exists( $path ) ) {
 			return true;
 		}
-		$ok = @unlink( $webpPath );
+		$ok = @unlink( $path );
 		if ( $ok ) {
 			// Try to remove parent dir if empty (will silently fail if not)
-			@rmdir( dirname( $webpPath ) );
+			@rmdir( dirname( $path ) );
 		}
 		return $ok;
 	}

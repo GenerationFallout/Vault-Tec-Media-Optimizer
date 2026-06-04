@@ -41,6 +41,14 @@ class GdOptimizer implements OptimizerInterface {
 		return !empty( $info['WebP Support'] );
 	}
 
+	public function supportsAvif(): bool {
+		if ( !extension_loaded( 'gd' ) || !function_exists( 'imageavif' ) ) {
+			return false;
+		}
+		$info = gd_info();
+		return !empty( $info['AVIF Support'] );
+	}
+
 	public function supportsAnimatedWebP(): bool {
 		return false;
 	}
@@ -196,6 +204,57 @@ class GdOptimizer implements OptimizerInterface {
 		} catch ( Throwable $e ) {
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'GdOptimizer::convertToWebP failed for {src}: {msg}', [
+				'src' => $sourcePath,
+				'msg' => $e->getMessage(),
+			] );
+			if ( file_exists( $destPath ) ) {
+				@unlink( $destPath );
+			}
+			return false;
+		}
+	}
+
+	public function convertToAvif( string $sourcePath, string $destPath, int $quality ): bool {
+		$this->lastError = null;
+		try {
+			if ( !function_exists( 'imageavif' ) ) {
+				$this->lastError = 'imageavif() not available in this GD build';
+				return false;
+			}
+
+			$mime = @mime_content_type( $sourcePath );
+			$img = null;
+			switch ( $mime ) {
+				case 'image/png':
+					$img = @imagecreatefrompng( $sourcePath );
+					if ( $img ) {
+						imagepalettetotruecolor( $img );
+						imagealphablending( $img, true );
+						imagesavealpha( $img, true );
+					}
+					break;
+				case 'image/jpeg':
+					$img = @imagecreatefromjpeg( $sourcePath );
+					break;
+				case 'image/gif':
+					// First frame only (GD has no animated AVIF).
+					$img = @imagecreatefromgif( $sourcePath );
+					break;
+				default:
+					return false;
+			}
+
+			if ( !$img ) {
+				return false;
+			}
+
+			$ok = imageavif( $img, $destPath, $quality );
+			imagedestroy( $img );
+
+			return $ok && file_exists( $destPath ) && filesize( $destPath ) > 0;
+		} catch ( Throwable $e ) {
+			$this->lastError = $e->getMessage();
+			$this->logger->warning( 'GdOptimizer::convertToAvif failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );

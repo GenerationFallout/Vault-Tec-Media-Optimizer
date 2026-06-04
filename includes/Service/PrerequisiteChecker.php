@@ -178,6 +178,21 @@ class PrerequisiteChecker {
 				'GD is unusual to be missing. Ensure php-gd is installed.' );
 		}
 
+		// AVIF (experimental): whether any backend can actually encode it. Shown
+		// as a blocking failure only when the feature is enabled but unusable.
+		$avifSupported =
+			( extension_loaded( 'imagick' ) && in_array( 'AVIF', Imagick::queryFormats(), true ) )
+			|| ( extension_loaded( 'gd' ) && function_exists( 'imageavif' ) && !empty( gd_info()['AVIF Support'] ) );
+		$avifEnabled = (bool)$this->options->get( 'VaultTecMediaOptimizerAvifEnabled' );
+		$checks[] = $this->result(
+			'vaulttecmediaoptimizer-check-avif-support',
+			$avifSupported ? self::STATUS_OK : ( $avifEnabled ? self::STATUS_FAIL : self::STATUS_INFO ),
+			$avifSupported ? 'supported' : 'NOT supported',
+			$avifSupported ? null : ( $avifEnabled
+				? 'AVIF is enabled but no backend can encode it. Build Imagick with AVIF (libheif/libaom) or PHP-GD with imageavif(), or disable $wgVaultTecMediaOptimizerAvifEnabled.'
+				: 'Optional/experimental. Needs Imagick with AVIF or PHP-GD with imageavif() before enabling $wgVaultTecMediaOptimizerAvifEnabled.' )
+		);
+
 		return $checks;
 	}
 
@@ -344,6 +359,14 @@ class PrerequisiteChecker {
 			self::STATUS_INFO,
 			implode( ', ', $formats ),
 			null );
+
+		$avifEnabled = (bool)$this->options->get( 'VaultTecMediaOptimizerAvifEnabled' );
+		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-avif-enabled',
+			self::STATUS_INFO,
+			$avifEnabled ? 'true' : 'false',
+			$avifEnabled
+				? 'Experimental: AVIF copies are generated and offered before WebP to capable browsers.'
+				: null );
 
 		return $checks;
 	}

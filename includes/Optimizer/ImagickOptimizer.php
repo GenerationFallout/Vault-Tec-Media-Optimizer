@@ -38,6 +38,14 @@ class ImagickOptimizer implements OptimizerInterface {
 		return in_array( 'WEBP', Imagick::queryFormats(), true );
 	}
 
+	public function supportsAvif(): bool {
+		if ( !extension_loaded( 'imagick' ) ) {
+			return false;
+		}
+		// Imagick exposes AVIF when built against libheif with an AV1 encoder.
+		return in_array( 'AVIF', Imagick::queryFormats(), true );
+	}
+
 	public function supportsAnimatedWebP(): bool {
 		// Imagick handles animated WebP via coalesceImages + format change
 		return $this->supportsWebP();
@@ -243,6 +251,52 @@ class ImagickOptimizer implements OptimizerInterface {
 		} catch ( Throwable $e ) {
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'ImagickOptimizer::convertToWebP failed for {src}: {msg}', [
+				'src' => $sourcePath,
+				'msg' => $e->getMessage(),
+			] );
+			if ( file_exists( $destPath ) ) {
+				@unlink( $destPath );
+			}
+			return false;
+		}
+	}
+
+	public function convertToAvif( string $sourcePath, string $destPath, int $quality ): bool {
+		$this->lastError = null;
+		try {
+			$img = new Imagick();
+			$img->readImage( $sourcePath );
+
+			$isAnimated = $img->getNumberImages() > 1;
+			if ( $isAnimated ) {
+				$img = $img->coalesceImages();
+			}
+
+			// Per-frame settings (format, quality, optional metadata strip). AVIF
+			// is encoded lossy; alpha is preserved by the codec.
+			$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
+			foreach ( $img as $frame ) {
+				$frame->setImageFormat( 'avif' );
+				$frame->setImageCompressionQuality( $quality );
+				if ( $strip ) {
+					$frame->stripImage();
+				}
+			}
+
+			if ( $isAnimated ) {
+				// adjoin=true -> single animated AVIF (when the encoder supports it).
+				$img->writeImages( $destPath, true );
+			} else {
+				$img->writeImage( $destPath );
+			}
+
+			$img->clear();
+			$img->destroy();
+
+			return file_exists( $destPath ) && filesize( $destPath ) > 0;
+		} catch ( Throwable $e ) {
+			$this->lastError = $e->getMessage();
+			$this->logger->warning( 'ImagickOptimizer::convertToAvif failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );

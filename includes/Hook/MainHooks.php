@@ -117,10 +117,14 @@ class MainHooks implements
 			$path = $uploadDir . '/' . $rel;
 			try {
 				$this->webpRepo->deleteWebP( $path );
+				// Also remove the AVIF copy if any. Safe (and cheap) to call
+				// regardless of whether the AVIF feature is enabled: it no-ops
+				// when the file is absent.
+				$this->webpRepo->deleteAvif( $path );
 			} catch ( Throwable $e ) {
 				// Best-effort: log and move on. We don't want to block the
-				// deletion if WebP cleanup fails (disk error, perms, etc.).
-				$this->logger->warning( 'WebP cleanup failed for {name}: {msg}', [
+				// deletion if derived-file cleanup fails (disk error, perms, etc.).
+				$this->logger->warning( 'Derived-file cleanup failed for {name}: {msg}', [
 					'name' => $imgName,
 					'msg' => $e->getMessage(),
 				] );
@@ -230,6 +234,35 @@ class MainHooks implements
 				'name' => $file->getName(),
 				'msg' => $e->getMessage(),
 			] );
+		}
+
+		// AVIF thumbnail (experimental). Generated alongside the WebP so the
+		// rewriter can offer it first to AVIF-capable browsers. Best-effort: a
+		// failure here never affects the WebP copy or the page render.
+		if ( $this->options->get( 'VaultTecMediaOptimizerAvifEnabled' ) ) {
+			$avifInfo = $this->webpRepo->getAvifUrlAndPath( $thumbUrl );
+			if ( $avifInfo !== null ) {
+				[ , $avifDest ] = $avifInfo;
+				if ( !is_file( $avifDest ) && $this->webpRepo->ensureDirFor( $avifDest ) ) {
+					try {
+						$optimizer = $this->optimizerFactory->getOptimizer();
+						if ( $optimizer->supportsAvif() ) {
+							$avifQuality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
+							if ( !$optimizer->convertToAvif( $tmpThumbPath, $avifDest, $avifQuality ) ) {
+								$this->logger->debug( 'AVIF thumb generation failed for {name}: {detail}', [
+									'name' => $file->getName(),
+									'detail' => $optimizer->getLastError() ?? 'no detail',
+								] );
+							}
+						}
+					} catch ( Throwable $e ) {
+						$this->logger->debug( 'AVIF thumb generation error for {name}: {msg}', [
+							'name' => $file->getName(),
+							'msg' => $e->getMessage(),
+						] );
+					}
+				}
+			}
 		}
 
 		// Second pass: losslessly recompress the thumbnail PNG itself with

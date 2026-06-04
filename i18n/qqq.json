@@ -94,6 +94,8 @@
 	"vaulttecmediaoptimizer-check-imagick-formats": "Check label: Imagick supported formats.",
 	"vaulttecmediaoptimizer-check-gd": "Check label: GD availability.",
 	"vaulttecmediaoptimizer-check-gd-webp": "Check label: GD WebP support.",
+	"vaulttecmediaoptimizer-check-avif-support": "Check label: whether an image backend can encode AVIF.",
+	"vaulttecmediaoptimizer-check-avif-enabled": "Check label: whether experimental AVIF generation is enabled.",
 	"vaulttecmediaoptimizer-check-upload-dir": "Check label: upload directory.",
 	"vaulttecmediaoptimizer-check-filebackend": "Check label: file backend type.",
 	"vaulttecmediaoptimizer-check-webp-dir": "Check label: WebP directory.",

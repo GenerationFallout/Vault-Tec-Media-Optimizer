@@ -94,6 +94,8 @@
 	"vaulttecmediaoptimizer-check-imagick-formats": "Formats supported by Imagick",
 	"vaulttecmediaoptimizer-check-gd": "GD extension",
 	"vaulttecmediaoptimizer-check-gd-webp": "WebP support in GD",
+	"vaulttecmediaoptimizer-check-avif-support": "AVIF encoding support",
+	"vaulttecmediaoptimizer-check-avif-enabled": "AVIF generation (experimental)",
 	"vaulttecmediaoptimizer-check-upload-dir": "Upload directory",
 	"vaulttecmediaoptimizer-check-filebackend": "File backend",
 	"vaulttecmediaoptimizer-check-webp-dir": "WebP directory",

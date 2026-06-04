@@ -41,11 +41,32 @@ interface OptimizerInterface {
 	public function convertToWebP( string $sourcePath, string $destPath, bool $lossless, int $quality ): bool;
 
 	/**
+	 * Convert an image to AVIF at the given destination (experimental).
+	 *
+	 * AVIF is always encoded lossy (alpha is preserved); lossless AVIF is rarely
+	 * worth its size/time cost. Callers should check {@see self::supportsAvif()}
+	 * first and degrade gracefully (WebP remains the primary derived format).
+	 *
+	 * @param string $sourcePath Absolute path to source image (any supported format)
+	 * @param string $destPath Absolute path where the AVIF file should be written
+	 * @param int $quality Quality (0-100)
+	 * @return bool True on success
+	 */
+	public function convertToAvif( string $sourcePath, string $destPath, int $quality ): bool;
+
+	/**
 	 * Check if this backend can encode WebP at all.
 	 *
 	 * @return bool
 	 */
 	public function supportsWebP(): bool;
+
+	/**
+	 * Check if this backend can encode AVIF at all.
+	 *
+	 * @return bool
+	 */
+	public function supportsAvif(): bool;
 
 	/**
 	 * Check if this backend supports animated GIF -> animated WebP.

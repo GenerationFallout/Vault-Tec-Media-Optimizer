@@ -118,6 +118,11 @@ class HtmlRewriter {
 		// <img> past the window and then double-wrap it.
 		$pictureRanges = $this->buildPictureRanges( $text );
 
+		// AVIF is experimental and off by default. When on, it is offered BEFORE
+		// WebP so AVIF-capable browsers pick it and everyone else falls back to
+		// WebP (then to the original <img>).
+		$avifEnabled = (bool)$this->options->get( 'VaultTecMediaOptimizerAvifEnabled' );
+
 		// Process matches in REVERSE order so that replacement offsets earlier
 		// in the string remain valid as we splice in <picture> wrappers.
 		$replacements = []; // list of [offset, length, replacement] tuples
@@ -141,43 +146,36 @@ class HtmlRewriter {
 				continue;
 			}
 
-			// Build the WebP srcset by combining the 1x (src) and all
-			// Retina/HiDPI variants (srcset of the original <img>). Each
-			// candidate is only included if the corresponding WebP file
-			// actually exists on disk.
-			$webpSrcsetParts = [];
+			// Build one <source> per derived format, each combining the 1x (src)
+			// and all Retina/HiDPI variants (srcset of the original <img>). A
+			// candidate is only included if its derived file exists on disk (a
+			// <source> that 404s in <picture> shows a broken image instead of
+			// falling back). AVIF first (when enabled), then WebP, then the
+			// untouched <img> as the universal fallback.
+			$sources = '';
 
-			// 1x candidate from src
-			$webpInfo = $this->webpRepo->getWebPUrlAndPath( $src );
-			if ( $webpInfo !== null && $this->ensureWebP( $webpInfo ) ) {
-				$webpSrcsetParts[] = $webpInfo[0];
-			}
-
-			// HiDPI candidates from srcset
-			if ( preg_match( '/\ssrcset\s*=\s*(["\'])([^"\']+)\1/i', $tag, $sm ) ) {
-				$srcsetRaw = htmlspecialchars_decode( $sm[2], ENT_QUOTES | ENT_HTML5 );
-				foreach ( $this->parseSrcset( $srcsetRaw ) as [ $candidateUrl, $descriptor ] ) {
-					if ( !$this->srcLooksLocal( $candidateUrl, $uploadPath ) ) {
-						continue;
-					}
-					$info = $this->webpRepo->getWebPUrlAndPath( $candidateUrl );
-					if ( $info === null || !$this->ensureWebP( $info ) ) {
-						continue;
-					}
-					$webpSrcsetParts[] = $info[0] . ( $descriptor !== '' ? ' ' . $descriptor : '' );
+			if ( $avifEnabled ) {
+				$avifParts = $this->collectDerivedSrcset( $src, $tag, $uploadPath, 'avif' );
+				if ( $avifParts ) {
+					$sources .= '<source srcset="'
+						. htmlspecialchars( implode( ', ', $avifParts ), ENT_QUOTES )
+						. '" type="image/avif">';
 				}
 			}
 
-			// If no WebP exists for any variant, leave the <img> alone.
-			if ( !$webpSrcsetParts ) {
+			$webpParts = $this->collectDerivedSrcset( $src, $tag, $uploadPath, 'webp' );
+			if ( $webpParts ) {
+				$sources .= '<source srcset="'
+					. htmlspecialchars( implode( ', ', $webpParts ), ENT_QUOTES )
+					. '" type="image/webp">';
+			}
+
+			// If no derived format exists for any variant, leave the <img> alone.
+			if ( $sources === '' ) {
 				continue;
 			}
 
-			$webpSrcset = implode( ', ', $webpSrcsetParts );
-			$replacement = '<picture>'
-				. '<source srcset="' . htmlspecialchars( $webpSrcset, ENT_QUOTES ) . '" type="image/webp">'
-				. $tag
-				. '</picture>';
+			$replacement = '<picture>' . $sources . $tag . '</picture>';
 
 			$replacements[] = [ $offset, strlen( $tag ), $replacement ];
 		}
@@ -194,29 +192,83 @@ class HtmlRewriter {
 	}
 
 	/**
-	 * Ensure a WebP file exists for a resolved image, generating it on demand
-	 * if it is missing but the source thumbnail is present on disk.
+	 * Build the srcset parts for one derived format ('webp'|'avif'), combining
+	 * the 1x candidate (the <img> src) and any HiDPI variants from the <img>
+	 * srcset. Each candidate is included only if its derived file exists on disk
+	 * (generated on demand when missing, within the render budget).
+	 *
+	 * @param string $src The (entity-decoded) <img> src
+	 * @param string $tag The full <img> tag (to read its srcset, if any)
+	 * @param string $uploadPath
+	 * @param string $ext 'webp' | 'avif'
+	 * @return list<string> srcset entries, e.g. ["/images_avif/.../x.avif 2x"]
+	 */
+	private function collectDerivedSrcset( string $src, string $tag, string $uploadPath, string $ext ): array {
+		$parts = [];
+
+		// 1x candidate from src
+		$info = $this->derivedInfo( $src, $ext );
+		if ( $info !== null && $this->ensureDerived( $info, $ext ) ) {
+			$parts[] = $info[0];
+		}
+
+		// HiDPI candidates from srcset
+		if ( preg_match( '/\ssrcset\s*=\s*(["\'])([^"\']+)\1/i', $tag, $sm ) ) {
+			$srcsetRaw = htmlspecialchars_decode( $sm[2], ENT_QUOTES | ENT_HTML5 );
+			foreach ( $this->parseSrcset( $srcsetRaw ) as [ $candidateUrl, $descriptor ] ) {
+				if ( !$this->srcLooksLocal( $candidateUrl, $uploadPath ) ) {
+					continue;
+				}
+				$info = $this->derivedInfo( $candidateUrl, $ext );
+				if ( $info === null || !$this->ensureDerived( $info, $ext ) ) {
+					continue;
+				}
+				$parts[] = $info[0] . ( $descriptor !== '' ? ' ' . $descriptor : '' );
+			}
+		}
+
+		return $parts;
+	}
+
+	/**
+	 * Resolve the derived-format url/disk/source triple for a URL.
+	 *
+	 * @return array{0:string,1:string,2?:string}|null
+	 */
+	private function derivedInfo( string $url, string $ext ): ?array {
+		return $ext === 'avif'
+			? $this->webpRepo->getAvifUrlAndPath( $url )
+			: $this->webpRepo->getWebPUrlAndPath( $url );
+	}
+
+	/**
+	 * Ensure a derived file (WebP or AVIF) exists for a resolved image,
+	 * generating it on demand if it is missing but the source thumbnail is
+	 * present on disk.
 	 *
 	 * This is the fix for the core gap: FileTransformed only fires when
 	 * MediaWiki *creates* a thumbnail, never when it serves a pre-existing one.
 	 * As a result, thumbnails already on disk (e.g. infobox sizes generated
 	 * before this extension was installed, or sizes MediaWiki doesn't purge)
-	 * would never get a WebP. By generating here — at render time, in the same
-	 * flow that already serves the page — every thumbnail size that pages
-	 * actually request gets its WebP, whether it was created before or after
+	 * would never get a derived copy. By generating here — at render time, in the
+	 * same flow that already serves the page — every thumbnail size that pages
+	 * actually request gets its WebP/AVIF, whether it was created before or after
 	 * the extension, and whether or not it is ever regenerated.
 	 *
 	 * Only the sizes pages truly use are generated (no blind disk sweep). The
 	 * result is cached on disk, so generation happens at most once per size.
+	 * Synchronous encodes are capped per render by the P1 budget; AVIF support is
+	 * checked first so an unsupported backend never spends budget.
 	 *
-	 * @param array{0:string,1:string,2?:string} $info [webpUrl, webpDiskPath, srcThumbPath]
-	 * @return bool True if the WebP exists (already or after generation)
+	 * @param array{0:string,1:string,2?:string} $info [derivedUrl, derivedDiskPath, srcThumbPath]
+	 * @param string $ext 'webp' | 'avif'
+	 * @return bool True if the derived file exists (already or after generation)
 	 */
-	private function ensureWebP( array $info ): bool {
-		$webpPath = $info[1];
+	private function ensureDerived( array $info, string $ext ): bool {
+		$destPath = $info[1];
 
 		// Already present — nothing to do (the common case after warm-up).
-		if ( is_file( $webpPath ) ) {
+		if ( is_file( $destPath ) ) {
 			return true;
 		}
 
@@ -227,63 +279,77 @@ class HtmlRewriter {
 			return false;
 		}
 
-		// Budget guard (P1): cap how many missing WebP files we encode inline
-		// during this single render. Once the budget is spent, leave the <img>
-		// untouched — its WebP will be generated on a subsequent view (or by the
-		// FileTransformed hook when MediaWiki next regenerates the thumbnail),
-		// so the cache still warms up, just without front-loading the cost onto
-		// one unlucky visitor.
-		if ( $this->onDemandRemaining <= 0 ) {
-			return false;
-		}
-
 		// Determine MIME from the source thumbnail extension. We only handle
 		// the formats this extension targets; anything else is left as-is.
-		$ext = strtolower( pathinfo( $srcThumbPath, PATHINFO_EXTENSION ) );
+		$srcExt = strtolower( pathinfo( $srcThumbPath, PATHINFO_EXTENSION ) );
 		$mimeByExt = [
 			'png' => 'image/png',
 			'jpg' => 'image/jpeg',
 			'jpeg' => 'image/jpeg',
 			'gif' => 'image/gif',
 		];
-		if ( !isset( $mimeByExt[$ext] ) ) {
+		if ( !isset( $mimeByExt[$srcExt] ) ) {
 			return false;
 		}
-		$mime = $mimeByExt[$ext];
+		$mime = $mimeByExt[$srcExt];
 
 		$allowed = $this->options->get( 'VaultTecMediaOptimizerFormats' );
 		if ( !in_array( $mime, $allowed, true ) ) {
 			return false;
 		}
 
-		// Make sure the destination directory exists.
-		if ( !$this->webpRepo->ensureDirFor( $webpPath ) ) {
-			$this->logger->warning( 'On-demand WebP: cannot create directory for {dest}',
-				[ 'dest' => $webpPath ] );
+		// Resolve the backend up front so we can check AVIF support before
+		// spending any of the render budget.
+		try {
+			$optimizer = $this->optimizerFactory->getOptimizer();
+		} catch ( \Throwable $e ) {
+			return false;
+		}
+		if ( $ext === 'avif' && !$optimizer->supportsAvif() ) {
 			return false;
 		}
 
+		// Make sure the destination directory exists.
+		if ( !$this->webpRepo->ensureDirFor( $destPath ) ) {
+			$this->logger->warning( 'On-demand {ext}: cannot create directory for {dest}',
+				[ 'ext' => $ext, 'dest' => $destPath ] );
+			return false;
+		}
+
+		// Budget guard (P1): cap how many missing derived files we encode inline
+		// during this single render. Once spent, leave the <img> untouched — the
+		// derived file will be generated on a later view (or by FileTransformed
+		// when MediaWiki next regenerates the thumbnail), so the cache still warms
+		// up without front-loading the cost onto one unlucky visitor.
+		if ( $this->onDemandRemaining <= 0 ) {
+			return false;
+		}
 		// We are committing to an encode: spend one unit of the render budget.
 		$this->onDemandRemaining--;
 
 		try {
-			$optimizer = $this->optimizerFactory->getOptimizer();
-			$lossless = ( $mime === 'image/png' )
-				&& (bool)$this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
-
-			$ok = $optimizer->convertToWebP( $srcThumbPath, $webpPath, $lossless, $quality );
+			if ( $ext === 'avif' ) {
+				$quality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
+				$ok = $optimizer->convertToAvif( $srcThumbPath, $destPath, $quality );
+			} else {
+				$lossless = ( $mime === 'image/png' )
+					&& (bool)$this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
+				$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+				$ok = $optimizer->convertToWebP( $srcThumbPath, $destPath, $lossless, $quality );
+			}
 			if ( !$ok ) {
-				$this->logger->debug( 'On-demand WebP generation failed for {src}: {err}', [
+				$this->logger->debug( 'On-demand {ext} generation failed for {src}: {err}', [
+					'ext' => $ext,
 					'src' => $srcThumbPath,
 					'err' => $optimizer->getLastError() ?? 'no detail',
 				] );
 				return false;
 			}
-			$this->logger->debug( 'On-demand WebP generated: {dest}', [ 'dest' => $webpPath ] );
-			return is_file( $webpPath );
+			$this->logger->debug( 'On-demand {ext} generated: {dest}', [ 'ext' => $ext, 'dest' => $destPath ] );
+			return is_file( $destPath );
 		} catch ( \Throwable $e ) {
-			$this->logger->warning( 'On-demand WebP generation error for {src}: {msg}', [
+			$this->logger->warning( 'On-demand {ext} generation error for {src}: {msg}', [
+				'ext' => $ext,
 				'src' => $srcThumbPath,
 				'msg' => $e->getMessage(),
 			] );
