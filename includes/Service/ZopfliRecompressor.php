@@ -237,7 +237,10 @@ class ZopfliRecompressor implements PngRecompressorInterface {
 			return null;
 		}
 
-		$tmp = $path . '.zopfli.tmp';
+		// Unique temp name (pid + uniqid) so two concurrent recompressions of the
+		// same PNG never write into one shared temp and rename a corrupted result
+		// over the original. Same directory => the rename below stays atomic.
+		$tmp = $path . '.zopfli.' . getmypid() . '.' . uniqid() . '.tmp';
 		$iterations = (int)$this->options->get( 'VaultTecMediaOptimizerZopfliIterations' );
 		if ( $iterations < 1 ) {
 			$iterations = 15;

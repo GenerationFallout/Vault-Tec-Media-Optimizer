@@ -199,7 +199,10 @@ class OxipngRecompressor implements PngRecompressorInterface {
 		// oxipng optimizes in place with --out, but to keep the "only replace
 		// if smaller" guarantee identical to the zopfli path, we write to a
 		// temp file and compare ourselves.
-		$tmp = $path . '.oxipng.tmp';
+		// Unique temp name (pid + uniqid) so two concurrent recompressions of the
+		// same PNG never collide on one shared temp. Same directory => the rename
+		// below stays atomic.
+		$tmp = $path . '.oxipng.' . getmypid() . '.' . uniqid() . '.tmp';
 		// Start from a copy so oxipng has something to optimize at $tmp.
 		if ( !@copy( $path, $tmp ) ) {
 			$this->lastError = 'Could not create temp copy for oxipng';
