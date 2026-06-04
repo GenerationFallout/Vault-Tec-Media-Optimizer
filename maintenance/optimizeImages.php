@@ -54,6 +54,10 @@ class OptimizeImages extends Maintenance {
 		$this->addOption( 'max', 'Stop after optimizing this many files (default: no limit).', false, true );
 		$this->addOption( 'force', 'Reprocess files already marked complete/skipped too.' );
 		$this->addOption( 'start', 'Resume scanning from this img_name (exclusive).', false, true );
+		$this->addOption( 'purge-queue',
+			'Empty the VTMO OptimizeImage job queue before scanning, to avoid redundant '
+			. 'work after a previous Special:VTMOBackfill scheduling. The zopfli second-pass '
+			. 'queue is left intact (the CLI run does not replace it).' );
 		$this->setBatchSize( 100 );
 	}
 
@@ -94,6 +98,13 @@ class OptimizeImages extends Maintenance {
 		$force = $this->hasOption( 'force' );
 		$dryRun = $this->hasOption( 'dry-run' );
 		$lastName = (string)$this->getOption( 'start', '' );
+
+		// Optionally clear the queued OptimizeImage jobs first, so a previously
+		// scheduled backfill doesn't redo (idempotently but wastefully) what this
+		// CLI run is about to do. The zopfli second-pass queue is left untouched.
+		if ( $this->hasOption( 'purge-queue' ) ) {
+			$this->purgeOptimizeQueue( $services, $dryRun );
+		}
 
 		$done = 0;
 		$failed = 0;
@@ -170,6 +181,40 @@ class OptimizeImages extends Maintenance {
 			$failed,
 			$skippedExisting
 		) );
+	}
+
+	/**
+	 * Empty the VTMO OptimizeImage job queue (unclaimed + delayed jobs). Leaves
+	 * the separate zopfli second-pass queue intact, since this CLI run does not
+	 * perform that pass. In --dry-run we only report the count.
+	 *
+	 * @param MediaWikiServices $services
+	 * @param bool $dryRun
+	 */
+	private function purgeOptimizeQueue( $services, bool $dryRun ): void {
+		$queue = $services->getJobQueueGroup()->get( 'VaultTecMediaOptimizerOptimizeImage' );
+		$size = $queue->getSize();
+
+		if ( $dryRun ) {
+			$this->output( "Dry run: would purge $size queued OptimizeImage job(s) "
+				. "(zopfli second-pass queue left intact).\n" );
+			return;
+		}
+		if ( $size === 0 ) {
+			$this->output( "Job queue already empty (no OptimizeImage jobs to purge).\n" );
+			return;
+		}
+		try {
+			$queue->delete();
+			$this->output( "Purged $size queued OptimizeImage job(s) before the CLI run "
+				. "(zopfli second-pass queue left intact).\n" );
+		} catch ( \Throwable $e ) {
+			$this->fatalError(
+				'Could not purge the job queue: ' . $e->getMessage() . "\n"
+				. '(The queue backend may not support deletion. You can let the jobs drain '
+				. 'instead — they are idempotent and will simply re-run as no-ops.)'
+			);
+		}
 	}
 
 	/**
