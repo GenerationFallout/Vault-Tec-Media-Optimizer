@@ -215,8 +215,12 @@ class HtmlRewriter {
 	private function ensureWebP( array $info ): bool {
 		$webpPath = $info[1];
 
-		// Already present — nothing to do (the common case after warm-up).
-		if ( is_file( $webpPath ) ) {
+		// Already present AND non-empty — serve it (the common case after
+		// warm-up). A leftover 0-byte/truncated WebP (e.g. from an interrupted
+		// pre-atomic write, disk-full, or tampering) is treated as missing: a
+		// <source> pointing at it would break the image with no fallback, so we
+		// regenerate instead.
+		if ( is_file( $webpPath ) && filesize( $webpPath ) > 0 ) {
 			return true;
 		}
 

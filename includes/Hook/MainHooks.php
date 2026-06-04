@@ -191,8 +191,10 @@ class MainHooks implements
 		}
 		[ , $webpDest ] = $webpInfo;
 
-		// Don't regenerate if already present
-		if ( is_file( $webpDest ) ) {
+		// Don't regenerate if already present and non-empty. A 0-byte/truncated
+		// leftover is treated as missing so we replace it (atomically) rather than
+		// leave a broken WebP that the rewriter would serve with no fallback.
+		if ( is_file( $webpDest ) && filesize( $webpDest ) > 0 ) {
 			return true;
 		}
 
