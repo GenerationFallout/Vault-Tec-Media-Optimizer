@@ -149,7 +149,19 @@ class OptimizeImages extends Maintenance {
 					continue;
 				}
 
-				if ( $processor->processByName( $imgName ) ) {
+				// Isolate each file: an exception escaping ImageProcessor (e.g. from
+				// newFile()/exists() which run outside its own try/catch) must not
+				// abort the whole run. Log it, count it, and carry on — the run
+				// stays resumable via --start regardless.
+				try {
+					$result = $processor->processByName( $imgName );
+				} catch ( \Throwable $e ) {
+					$failed++;
+					$this->output( "  [ERR]  $imgName ({$e->getMessage()})\n" );
+					continue;
+				}
+
+				if ( $result ) {
 					$done++;
 					$this->output( "  [OK]   $imgName\n" );
 				} else {

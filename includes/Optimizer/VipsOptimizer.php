@@ -88,12 +88,8 @@ class VipsOptimizer implements OptimizerInterface {
 			$this->lastError = 'vips not available';
 			return false;
 		}
-		$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
-		$opts = 'compression=9' . ( $strip ? ',strip=true' : '' );
 		$tmp = $path . '.vtmo-vips.tmp';
-		$code = $this->runVips( [ 'pngsave', $path, $tmp . '[' . $opts . ']' ] );
-		if ( $code !== 0 ) {
-			$this->lastError = "vips pngsave exited with code $code";
+		if ( !$this->saveWithOptionalStrip( 'pngsave', $path, $tmp, 'compression=9' ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
@@ -112,18 +108,51 @@ class VipsOptimizer implements OptimizerInterface {
 		// lossless; true lossless JPEG would need jpegtran/mozjpeg). optimize_coding
 		// shrinks the Huffman tables. trellis quant is intentionally NOT requested:
 		// it errors on non-mozjpeg vips builds, which would abort the encode.
-		$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
-		$opts = 'Q=92,optimize_coding=true' . ( $strip ? ',strip=true' : '' );
 		$tmp = $path . '.vtmo-vips.tmp';
-		$code = $this->runVips( [ 'jpegsave', $path, $tmp . '[' . $opts . ']' ] );
-		if ( $code !== 0 ) {
-			$this->lastError = "vips jpegsave exited with code $code";
+		if ( !$this->saveWithOptionalStrip( 'jpegsave', $path, $tmp, 'Q=92,optimize_coding=true' ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
 			return false;
 		}
 		return $this->keepIfSmaller( $path, $tmp );
+	}
+
+	/**
+	 * Run a vips saver into $tmp with the given base options, adding strip=true
+	 * when metadata stripping is enabled. If the strip-enabled save fails — recent
+	 * libvips (>= 8.15) deprecated the 'strip' option in favour of 'keep', and a
+	 * build may reject it — retry once WITHOUT strip: optimizing without stripping
+	 * beats skipping the file (and the original is untouched on failure thanks to
+	 * keep-if-smaller). Sets lastError on hard failure. Returns true if $tmp was
+	 * written.
+	 *
+	 * @param string $op vips operation ('pngsave'|'jpegsave')
+	 * @param string $src Source path
+	 * @param string $tmp Destination temp path
+	 * @param string $baseOpts Comma-separated vips save options, without strip
+	 * @return bool
+	 */
+	private function saveWithOptionalStrip( string $op, string $src, string $tmp, string $baseOpts ): bool {
+		$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
+		$opts = $baseOpts . ( $strip ? ',strip=true' : '' );
+		$code = $this->runVips( [ $op, $src, $tmp . '[' . $opts . ']' ] );
+		if ( $code === 0 ) {
+			return true;
+		}
+		if ( $strip ) {
+			// The deprecated 'strip' option may be the culprit; retry without it.
+			if ( is_file( $tmp ) ) {
+				@unlink( $tmp );
+			}
+			$code = $this->runVips( [ $op, $src, $tmp . '[' . $baseOpts . ']' ] );
+			if ( $code === 0 ) {
+				$this->logger->debug( 'vips {op}: retried without the deprecated strip option', [ 'op' => $op ] );
+				return true;
+			}
+		}
+		$this->lastError = "vips $op exited with code $code";
+		return false;
 	}
 
 	public function convertToWebP( string $sourcePath, string $destPath, bool $lossless, int $quality ): bool {
