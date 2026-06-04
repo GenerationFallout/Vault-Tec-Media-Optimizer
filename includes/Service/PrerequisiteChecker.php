@@ -178,6 +178,25 @@ class PrerequisiteChecker {
 				'GD is unusual to be missing. Ensure php-gd is installed.' );
 		}
 
+		// libvips (optional engine): only relevant when selected. Probe the binary
+		// from the web PHP context so the admin sees its real usability.
+		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
+		if ( $engine === 'vips' ) {
+			$vipsPath = $this->locateBinary( 'VaultTecMediaOptimizerVipsBinary', 'vips' );
+			if ( $vipsPath !== null ) {
+				$checks[] = $this->result( 'vaulttecmediaoptimizer-check-vips',
+					self::STATUS_OK, $vipsPath, null );
+			} else {
+				$checks[] = $this->result( 'vaulttecmediaoptimizer-check-vips',
+					self::STATUS_FAIL, 'not found',
+					'Image engine "vips" is selected but the vips binary is not found or not runnable. '
+					. 'Install libvips (e.g. apt install libvips-tools), set '
+					. '$wgVaultTecMediaOptimizerVipsBinary, or switch '
+					. '$wgVaultTecMediaOptimizerImageEngine back to "auto". The extension falls back '
+					. 'to Imagick/GD meanwhile.' );
+			}
+		}
+
 		return $checks;
 	}
 
@@ -344,6 +363,14 @@ class PrerequisiteChecker {
 			self::STATUS_INFO,
 			implode( ', ', $formats ),
 			null );
+
+		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
+		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-image-engine',
+			self::STATUS_INFO,
+			$engine !== '' ? $engine : 'auto',
+			$engine === 'vips'
+				? 'Using libvips when available (faster/lighter, same WebP quality); falls back to Imagick/GD otherwise.'
+				: 'Imagick (then GD). Set $wgVaultTecMediaOptimizerImageEngine = "vips" to use libvips.' );
 
 		return $checks;
 	}

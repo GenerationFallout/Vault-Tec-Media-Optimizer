@@ -180,6 +180,14 @@
 		"VaultTecMediaOptimizerOnDemandThumbLimit": {
 			"value": 5,
 			"description": "Maximum number of missing thumbnail WebP files generated synchronously during a single page render (on-demand warm-up). Caps worst-case render latency on cold caches; thumbnails beyond the limit get their WebP on a later view or when MediaWiki regenerates them. Set to 0 to disable on-demand generation entirely (rely solely on the FileTransformed hook)."
+		},
+		"VaultTecMediaOptimizerImageEngine": {
+			"value": "auto",
+			"description": "Backend for first-pass optimization and WebP encoding: 'auto' (default: Imagick, then GD) or 'vips' (the external libvips binary — much faster and lighter at scale; same WebP quality). When 'vips' is set but the binary is unusable, the extension automatically falls back to Imagick/GD. The optional zopfli/oxipng PNG second pass is independent of this setting."
+		},
+		"VaultTecMediaOptimizerVipsBinary": {
+			"value": "vips",
+			"description": "Path to the libvips 'vips' binary, or just the command name to look up on PATH. Only used when VaultTecMediaOptimizerImageEngine is 'vips'. Requires shell execution (proc_open/exec) to be allowed."
 		}
 	},
 	"manifest_version": 2

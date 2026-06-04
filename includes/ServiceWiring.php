@@ -41,6 +41,8 @@ return [
 				'VaultTecMediaOptimizerBackfillBatchSize',
 				'VaultTecMediaOptimizerMaxFileSize',
 				'VaultTecMediaOptimizerOnDemandThumbLimit',
+				'VaultTecMediaOptimizerImageEngine',
+				'VaultTecMediaOptimizerVipsBinary',
 				'UploadDirectory',
 				'UploadPath',
 			],
