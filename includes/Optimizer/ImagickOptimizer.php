@@ -14,6 +14,8 @@ use Throwable;
  */
 class ImagickOptimizer implements OptimizerInterface {
 
+	use AtomicWriteTrait;
+
 	private ServiceOptions $options;
 	private LoggerInterface $logger;
 	private ?string $lastError = null;
@@ -78,7 +80,7 @@ class ImagickOptimizer implements OptimizerInterface {
 			// a stronger optimizer like oxipng/pngquant, or for some complex
 			// images with compression-strategy 2). Blindly overwriting would
 			// bloat originals — which is the opposite of optimization.
-			$tmp = $path . '.vtmo-opt.tmp';
+			$tmp = $this->uniqueTempPath( $path );
 			$img->writeImage( $tmp );
 			$img->clear();
 			$img->destroy();
@@ -131,7 +133,7 @@ class ImagickOptimizer implements OptimizerInterface {
 			// Same safety net as PNG: write to temp, keep only if smaller.
 			// Re-encoding can produce a larger file (e.g. progressive scheme
 			// overhead on small images, or an already-optimized source).
-			$tmp = $path . '.vtmo-opt.tmp';
+			$tmp = $this->uniqueTempPath( $path );
 			$img->writeImage( $tmp );
 			$img->clear();
 			$img->destroy();
@@ -229,26 +231,33 @@ class ImagickOptimizer implements OptimizerInterface {
 				$img->setOption( 'webp:lossless', 'true' );
 			}
 
+			$tmp = $this->uniqueTempPath( $destPath );
 			if ( $isAnimated ) {
 				// adjoin=true → write all frames into one animated WebP.
-				$img->writeImages( $destPath, true );
+				$img->writeImages( $tmp, true );
 			} else {
-				$img->writeImage( $destPath );
+				$img->writeImage( $tmp );
 			}
 
 			$img->clear();
 			$img->destroy();
 
-			return file_exists( $destPath ) && filesize( $destPath ) > 0;
+			// Atomic publish: a concurrent reader sees either the previous file or
+			// the complete new one, never a half-written WebP.
+			if ( !$this->publishAtomically( $tmp, $destPath ) ) {
+				$this->lastError = 'Could not finalize WebP output';
+				return false;
+			}
+			return true;
 		} catch ( Throwable $e ) {
+			if ( isset( $tmp ) && is_file( $tmp ) ) {
+				@unlink( $tmp );
+			}
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'ImagickOptimizer::convertToWebP failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
-			}
 			return false;
 		}
 	}

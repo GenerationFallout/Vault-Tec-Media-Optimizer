@@ -32,6 +32,8 @@ use Psr\Log\LoggerInterface;
  */
 class VipsOptimizer implements OptimizerInterface {
 
+	use AtomicWriteTrait;
+
 	private ServiceOptions $options;
 	private LoggerInterface $logger;
 	private ?string $lastError = null;
@@ -88,7 +90,7 @@ class VipsOptimizer implements OptimizerInterface {
 			$this->lastError = 'vips not available';
 			return false;
 		}
-		$tmp = $path . '.vtmo-vips.tmp';
+		$tmp = $this->uniqueTempPath( $path );
 		if ( !$this->saveWithOptionalStrip( 'pngsave', $path, $tmp, 'compression=9' ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
@@ -108,7 +110,7 @@ class VipsOptimizer implements OptimizerInterface {
 		// lossless; true lossless JPEG would need jpegtran/mozjpeg). optimize_coding
 		// shrinks the Huffman tables. trellis quant is intentionally NOT requested:
 		// it errors on non-mozjpeg vips builds, which would abort the encode.
-		$tmp = $path . '.vtmo-vips.tmp';
+		$tmp = $this->uniqueTempPath( $path );
 		if ( !$this->saveWithOptionalStrip( 'jpegsave', $path, $tmp, 'Q=92,optimize_coding=true' ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
@@ -168,15 +170,17 @@ class VipsOptimizer implements OptimizerInterface {
 		$loadArg = $sourcePath . ( $srcExt === 'gif' ? '[n=-1]' : '' );
 
 		$opts = $lossless ? 'lossless=true' : ( 'Q=' . $quality );
-		$code = $this->runVips( [ 'webpsave', $loadArg, $destPath . '[' . $opts . ']' ] );
+		$tmp = $this->uniqueTempPath( $destPath );
+		$code = $this->runVips( [ 'webpsave', $loadArg, $tmp . '[' . $opts . ']' ] );
 		if ( $code !== 0 ) {
 			$this->lastError = "vips webpsave exited with code $code";
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
+			if ( is_file( $tmp ) ) {
+				@unlink( $tmp );
 			}
 			return false;
 		}
-		return file_exists( $destPath ) && filesize( $destPath ) > 0;
+		// Atomic publish so a concurrent reader never sees a partial WebP.
+		return $this->publishAtomically( $tmp, $destPath );
 	}
 
 	/**
