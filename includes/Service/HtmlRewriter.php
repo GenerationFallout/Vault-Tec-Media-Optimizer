@@ -267,8 +267,12 @@ class HtmlRewriter {
 	private function ensureDerived( array $info, string $ext ): bool {
 		$destPath = $info[1];
 
-		// Already present — nothing to do (the common case after warm-up).
-		if ( is_file( $destPath ) ) {
+		// Already present AND non-empty — serve it (the common case after
+		// warm-up). A leftover 0-byte/truncated derived file (e.g. from an
+		// interrupted pre-atomic write, disk-full, or tampering) is treated as
+		// missing: a <source> pointing at it would break the image with no
+		// fallback, so we regenerate instead.
+		if ( is_file( $destPath ) && filesize( $destPath ) > 0 ) {
 			return true;
 		}
 
