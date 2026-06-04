@@ -407,6 +407,34 @@ class OptimizationRecord {
 	}
 
 	/**
+	 * Mark a row as second-pass-processed but with no gain, without distorting
+	 * statistics.
+	 *
+	 * Sets io_png_zopfli_size equal to io_optimized_size so the backfill query
+	 * (which selects io_png_zopfli_size IS NULL) stops re-selecting the row,
+	 * while keeping SUM(COALESCE(io_png_zopfli_size, io_optimized_size)) neutral
+	 * — the second pass then contributes a 0-byte saving. A literal sentinel such
+	 * as 1 would instead make COALESCE pick 1 and massively inflate the reported
+	 * space saved. The column-to-column assignment uses RawSQLValue (a fixed
+	 * column name, never user input). If io_optimized_size is somehow NULL the
+	 * row simply stays selectable, which is harmless.
+	 *
+	 * @param string $imgName
+	 */
+	public function markPngRecompressedNoGain( string $imgName ): void {
+		$db = $this->getPrimary();
+		$optCol = new RawSQLValue( 'io_optimized_size' );
+		$db->newUpdateQueryBuilder()
+			->update( self::TABLE )
+			->set( [ 'io_png_zopfli_size' => $optCol ] )
+			->where( [ 'io_img_name' => $imgName ] )
+			->andWhere( $db->expr( 'io_png_zopfli_size', '=', null ) )
+			->caller( __METHOD__ )
+			->execute();
+		$this->invalidateStatsCache();
+	}
+
+	/**
 	 * Repair a bloated row after re-optimizing the on-disk file: set both the
 	 * optimized size and the zopfli size to the file's true current size, so
 	 * statistics become consistent again. Used by the repair maintenance
