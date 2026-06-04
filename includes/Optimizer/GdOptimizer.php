@@ -16,6 +16,8 @@ use Throwable;
  */
 class GdOptimizer implements OptimizerInterface {
 
+	use AtomicWriteTrait;
+
 	private ServiceOptions $options;
 	private LoggerInterface $logger;
 	private ?string $lastError = null;
@@ -67,7 +69,7 @@ class GdOptimizer implements OptimizerInterface {
 
 			// Write to a temp file and keep only if smaller (GD re-encoding can
 			// easily produce a larger PNG than a well-optimized source).
-			$tmp = $path . '.vtmo-opt.tmp';
+			$tmp = $this->uniqueTempPath( $path );
 			$ok = imagepng( $img, $tmp, 9, PNG_ALL_FILTERS );
 			imagedestroy( $img );
 
@@ -104,7 +106,7 @@ class GdOptimizer implements OptimizerInterface {
 			// GD has no true lossless JPEG optimization. We re-encode at 95
 			// which is very close to visually-lossless. If strict losslessness
 			// is required, the user should install Imagick.
-			$tmp = $path . '.vtmo-opt.tmp';
+			$tmp = $this->uniqueTempPath( $path );
 			$ok = imagejpeg( $img, $tmp, 95 );
 			imagedestroy( $img );
 
@@ -197,19 +199,27 @@ class GdOptimizer implements OptimizerInterface {
 			// imagewebp doesn't have explicit lossless flag; quality 100 + PNG-like
 			// source approximates lossless. For real lossless, Imagick is required.
 			$webpQuality = $lossless ? 100 : $quality;
-			$ok = imagewebp( $img, $destPath, $webpQuality );
+			$tmp = $this->uniqueTempPath( $destPath );
+			$ok = imagewebp( $img, $tmp, $webpQuality );
 			imagedestroy( $img );
 
-			return $ok && file_exists( $destPath ) && filesize( $destPath ) > 0;
+			if ( !$ok ) {
+				if ( is_file( $tmp ) ) {
+					@unlink( $tmp );
+				}
+				return false;
+			}
+			// Atomic publish so a concurrent reader never sees a partial WebP.
+			return $this->publishAtomically( $tmp, $destPath );
 		} catch ( Throwable $e ) {
+			if ( isset( $tmp ) && is_file( $tmp ) ) {
+				@unlink( $tmp );
+			}
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'GdOptimizer::convertToWebP failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
-			}
 			return false;
 		}
 	}
