@@ -240,15 +240,17 @@ class VipsOptimizer implements OptimizerInterface {
 
 		// heifsave with the AV1 codec produces AVIF. Q is the quality (0-100).
 		$opts = 'compression=av1,Q=' . $quality;
-		$code = $this->runVips( [ 'heifsave', $loadArg, $destPath . '[' . $opts . ']' ] );
+		$tmp = $this->uniqueTempPath( $destPath );
+		$code = $this->runVips( [ 'heifsave', $loadArg, $tmp . '[' . $opts . ']' ] );
 		if ( $code !== 0 ) {
 			$this->lastError = "vips heifsave exited with code $code";
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
+			if ( is_file( $tmp ) ) {
+				@unlink( $tmp );
 			}
 			return false;
 		}
-		return file_exists( $destPath ) && filesize( $destPath ) > 0;
+		// Atomic publish so a concurrent reader never sees a partial AVIF.
+		return $this->publishAtomically( $tmp, $destPath );
 	}
 
 	/**

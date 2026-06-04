@@ -292,26 +292,32 @@ class ImagickOptimizer implements OptimizerInterface {
 				}
 			}
 
+			$tmp = $this->uniqueTempPath( $destPath );
 			if ( $isAnimated ) {
 				// adjoin=true -> single animated AVIF (when the encoder supports it).
-				$img->writeImages( $destPath, true );
+				$img->writeImages( $tmp, true );
 			} else {
-				$img->writeImage( $destPath );
+				$img->writeImage( $tmp );
 			}
 
 			$img->clear();
 			$img->destroy();
 
-			return file_exists( $destPath ) && filesize( $destPath ) > 0;
+			// Atomic publish so a concurrent reader never sees a partial AVIF.
+			if ( !$this->publishAtomically( $tmp, $destPath ) ) {
+				$this->lastError = 'Could not finalize AVIF output';
+				return false;
+			}
+			return true;
 		} catch ( Throwable $e ) {
+			if ( isset( $tmp ) && is_file( $tmp ) ) {
+				@unlink( $tmp );
+			}
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'ImagickOptimizer::convertToAvif failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
-			}
 			return false;
 		}
 	}

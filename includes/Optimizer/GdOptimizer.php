@@ -258,19 +258,27 @@ class GdOptimizer implements OptimizerInterface {
 				return false;
 			}
 
-			$ok = imageavif( $img, $destPath, $quality );
+			$tmp = $this->uniqueTempPath( $destPath );
+			$ok = imageavif( $img, $tmp, $quality );
 			imagedestroy( $img );
 
-			return $ok && file_exists( $destPath ) && filesize( $destPath ) > 0;
+			if ( !$ok ) {
+				if ( is_file( $tmp ) ) {
+					@unlink( $tmp );
+				}
+				return false;
+			}
+			// Atomic publish so a concurrent reader never sees a partial AVIF.
+			return $this->publishAtomically( $tmp, $destPath );
 		} catch ( Throwable $e ) {
+			if ( isset( $tmp ) && is_file( $tmp ) ) {
+				@unlink( $tmp );
+			}
 			$this->lastError = $e->getMessage();
 			$this->logger->warning( 'GdOptimizer::convertToAvif failed for {src}: {msg}', [
 				'src' => $sourcePath,
 				'msg' => $e->getMessage(),
 			] );
-			if ( file_exists( $destPath ) ) {
-				@unlink( $destPath );
-			}
 			return false;
 		}
 	}
