@@ -44,6 +44,8 @@ return [
 				'VaultTecMediaOptimizerAvifEnabled',
 				'VaultTecMediaOptimizerAvifDirectory',
 				'VaultTecMediaOptimizerAvifQuality',
+				'VaultTecMediaOptimizerImageEngine',
+				'VaultTecMediaOptimizerVipsBinary',
 				'UploadDirectory',
 				'UploadPath',
 			],

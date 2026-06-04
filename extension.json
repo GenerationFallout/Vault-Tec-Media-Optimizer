@@ -192,6 +192,14 @@
 		"VaultTecMediaOptimizerAvifQuality": {
 			"value": 50,
 			"description": "Quality for AVIF encoding (0-100). AVIF quality is not directly comparable to JPEG/WebP; roughly 45-55 is visually equivalent to WebP 80-85 at a smaller size. Alpha (transparency) is preserved."
+		},
+		"VaultTecMediaOptimizerImageEngine": {
+			"value": "auto",
+			"description": "Backend for first-pass optimization and WebP encoding: 'auto' (default: Imagick, then GD) or 'vips' (the external libvips binary — much faster and lighter at scale; same WebP quality). When 'vips' is set but the binary is unusable, the extension automatically falls back to Imagick/GD. The optional zopfli/oxipng PNG second pass is independent of this setting."
+		},
+		"VaultTecMediaOptimizerVipsBinary": {
+			"value": "vips",
+			"description": "Path to the libvips 'vips' binary, or just the command name to look up on PATH. Only used when VaultTecMediaOptimizerImageEngine is 'vips'. Requires shell execution (proc_open/exec) to be allowed."
 		}
 	},
 	"manifest_version": 2

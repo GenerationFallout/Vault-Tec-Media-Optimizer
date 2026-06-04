@@ -96,6 +96,8 @@
 	"vaulttecmediaoptimizer-check-gd-webp": "Check label: GD WebP support.",
 	"vaulttecmediaoptimizer-check-avif-support": "Check label: whether an image backend can encode AVIF.",
 	"vaulttecmediaoptimizer-check-avif-enabled": "Check label: whether experimental AVIF generation is enabled.",
+	"vaulttecmediaoptimizer-check-vips": "Check label: whether the optional libvips binary is usable.",
+	"vaulttecmediaoptimizer-check-image-engine": "Check label: which image backend (auto/vips) is configured.",
 	"vaulttecmediaoptimizer-check-upload-dir": "Check label: upload directory.",
 	"vaulttecmediaoptimizer-check-filebackend": "Check label: file backend type.",
 	"vaulttecmediaoptimizer-check-webp-dir": "Check label: WebP directory.",

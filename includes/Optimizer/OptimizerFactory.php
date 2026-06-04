@@ -34,6 +34,21 @@ class OptimizerFactory {
 			return $this->instance;
 		}
 
+		// Optional libvips engine. Selected only when explicitly configured AND
+		// the binary is usable; otherwise we log and fall through to the default
+		// Imagick/GD selection, so a misconfiguration never breaks processing.
+		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
+		if ( $engine === 'vips' ) {
+			$vips = new VipsOptimizer( $this->options, $this->logger );
+			if ( $vips->supportsWebP() ) {
+				$this->instance = $vips;
+				return $vips;
+			}
+			$this->logger->warning(
+				'Image engine "vips" selected but the vips binary is not usable; falling back to Imagick/GD.'
+			);
+		}
+
 		// Prefer Imagick
 		if ( extension_loaded( 'imagick' ) ) {
 			$imagick = new ImagickOptimizer( $this->options, $this->logger );
