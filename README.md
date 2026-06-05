@@ -17,7 +17,7 @@ MediaWiki extension — lossless image optimization + automatic WebP (and experi
 
 **Vault-Tec Media Optimizer** allège les médias d'un wiki de deux façons complémentaires :
 
-- **Optimisation sans perte** des originaux (PNG/JPEG/GIF) — les pixels restent identiques, seul le poids disque baisse.
+- **Optimisation sans perte** des originaux (PNG/JPEG, et GIF via `gifsicle`) — les pixels restent identiques, seul le poids disque baisse.
 - **Génération WebP** (et **AVIF** en option expérimentale) servie automatiquement aux navigateurs via une balise `<picture>`, avec repli sur l'image d'origine. C'est le vrai gain : **bande passante** et vitesse pour les visiteurs.
 
 Les nouveaux fichiers sont traités automatiquement ; un **rattrapage** (backfill) traite l'existant, en file de tâches **ou en ligne de commande**. Trois pages spéciales (diagnostic, rattrapage, statistiques) pilotent le tout.
@@ -43,7 +43,8 @@ Vérifiez **Spécial:VaultTec_État** (tout au vert), puis lancez le rattrapage 
 
 ### Voir aussi
 - Guide complet d'installation et d'administration : **PDF v1.4.1** (sections 1-15).
-- **Nouveautés depuis la v1.4.1** (moteur libvips, AVIF, scripts CLI, mode gros wiki) : [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
+- **Performances, dépendances & benchmarks** : guide bilingue [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (installation des dépendances, benchmarks coût/bénéfice honnêtes).
+- **Nouveautés depuis la v1.4.1** (moteur libvips, GIF `gifsicle`, AVIF, scripts CLI, mode gros wiki, correctifs 1.8.x) : [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
 - Journal des modifications : [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
@@ -52,7 +53,7 @@ Vérifiez **Spécial:VaultTec_État** (tout au vert), puis lancez le rattrapage 
 
 **Vault-Tec Media Optimizer** lightens a wiki's media in two complementary ways:
 
-- **Lossless optimization** of originals (PNG/JPEG/GIF) — pixels stay identical, only disk size drops.
+- **Lossless optimization** of originals (PNG/JPEG, and GIF via `gifsicle`) — pixels stay identical, only disk size drops.
 - **WebP generation** (and **experimental AVIF**) served automatically through a `<picture>` tag, with a fallback to the original. This is the real win: **bandwidth** and speed for visitors.
 
 New uploads are processed automatically; a **backfill** handles existing files, via the job queue **or the command line**. Three special pages (diagnostics, backfill, statistics) drive everything.
@@ -78,7 +79,8 @@ Check **Special:VTMOStatus** (all green), then start the backfill from **Special
 
 ### See also
 - Full installation & administration guide: **PDF v1.4.1** (sections 1-15).
-- **What's new since v1.4.1** (libvips engine, AVIF, CLI scripts, large-wiki mode): [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
+- **Performance, dependencies & benchmarks**: bilingual guide [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (dependency install, honest cost/benefit benchmarks).
+- **What's new since v1.4.1** (libvips engine, GIF `gifsicle`, AVIF, CLI scripts, large-wiki mode, 1.8.x fixes): [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
 - Change log: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---

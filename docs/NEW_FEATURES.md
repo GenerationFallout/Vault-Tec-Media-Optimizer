@@ -7,6 +7,16 @@ numbers (e.g. *§4*) refer to the PDF. **Français** first, **English** below.
 
 # 🇫🇷 Compléments à la documentation
 
+## ⚡ 1.8.x — GIF sans perte, `--format` & correctifs (résumé)
+
+**Optimisation GIF sans perte (`gifsicle`)** — `$wgVaultTecMediaOptimizerGifsicleEnabled = true;` (+ `…GifsicleBinary`, `…GifsicleLevel` 1–3, défaut 3). 1ʳᵉ passe, **strictement sans perte et sûre pour l'animation** (seul `-O{niveau}` ; jamais resize/lossy/colors). Tourne à l'upload **et** dans `optimizeImages.php` ; `gifsicle` absent = no-op inoffensif. Installation : `sudo apt install gifsicle`.
+
+**Filtre `--format` (rattrapage CLI)** — `php maintenance/optimizeImages.php --format=gif` (ou `--format=png,jpeg`) : restreint le run à un sous-ensemble des formats configurés.
+
+**Correctifs 1.8.1** — métadonnées MediaWiki (`img_sha1`/`img_size`) **resynchronisées** après la 1ʳᵉ passe en place ; **GIF animés jamais figés** : sous GD (1ʳᵉ frame seulement) le WebP/AVIF est refusé et le GIF animé conservé ; les GIF statiques se convertissent correctement (palette → truecolor).
+
+> 📊 **Benchmarks & coût/bénéfice honnête** (bande passante au niveau *miniature*, le WebP qui *ajoute* du disque, installation des dépendances) : voir le guide **Performances & Bonnes-Pratiques** — [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (PDF bilingue, 13 graphiques ; modèle reproductible : `docs/benchmarks/model.py`).
+
 ## A. Nouveaux paramètres de configuration (complète le §4)
 
 | Paramètre | Défaut | Description |
@@ -129,6 +139,16 @@ HEIC sans encodeur AV1) : sinon l'AVIF est **sauté proprement** (le WebP reste 
 ---
 
 # 🇬🇧 Documentation additions
+
+## ⚡ 1.8.x — lossless GIF, `--format` & fixes (summary)
+
+**Lossless GIF optimization (`gifsicle`)** — `$wgVaultTecMediaOptimizerGifsicleEnabled = true;` (+ `…GifsicleBinary`, `…GifsicleLevel` 1–3, default 3). First pass, **strictly lossless and animation-safe** (only `-O{level}`; never resize/lossy/colors). Runs on upload **and** in `optimizeImages.php`; a missing `gifsicle` is a harmless no-op. Install: `sudo apt install gifsicle`.
+
+**`--format` filter (CLI backfill)** — `php maintenance/optimizeImages.php --format=gif` (or `--format=png,jpeg`): restrict a run to a subset of the configured formats.
+
+**1.8.1 fixes** — MediaWiki metadata (`img_sha1`/`img_size`) **refreshed** after the in-place first pass; **animated GIFs are never frozen**: under GD (first frame only) the WebP/AVIF is refused and the animated GIF kept; still GIFs convert correctly (palette → truecolor).
+
+> 📊 **Honest benchmarks & cost/benefit** (thumbnail-level bandwidth, WebP that *adds* disk, dependency install): see the **Performance & Best-Practices** guide — [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (bilingual PDF, 13 charts; reproducible model: `docs/benchmarks/model.py`).
 
 ## A. New configuration settings (extends §4)
 
