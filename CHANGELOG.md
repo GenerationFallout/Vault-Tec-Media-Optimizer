@@ -11,18 +11,24 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 Corrige une **latence de rendu** : le hook `onFileTransformed` exécutait, **en synchrone pendant le rendu**
 d'une page et **sans aucun budget**, le second passage **zopflipng** sur chaque miniature PNG nouvellement
 générée (et l'AVIF sur la branche expérimentale). Or zopflipng coûte ~14 s/fichier : une galerie en cache
-froid pouvait ajouter des minutes au rendu — payées par un visiteur. Ces traitements lents sont désormais
-**différés après l'envoi de la réponse** (POST_SEND) et **bornés par requête** (même budget que l'on-demand,
-`OnDemandThumbLimit`). Le WebP, rapide, reste synchrone.
+froid pouvait ajouter des minutes au rendu — payées par un visiteur. Ce second passage est désormais **confié à un job en arrière-plan**
+(`VaultTecMediaOptimizerThumbnailRecompress`) au lieu de tourner dans le rendu : l'enfilement est quasi
+instantané, et la recompression s'exécute **hors requête** quand la file est traitée en ligne de commande
+(idéalement `$wgJobRunRate = 0` + `runJobs.php`), si bien qu'**aucun visiteur ne la paie**. En mode gros wiki
+(`UseJobQueue = false`) elle est sautée. Le WebP, rapide, reste synchrone (c'est l'asset servi).
 
 ### Fixed
 - **Synchronous thumbnail second-pass latency in `onFileTransformed`** — the zopflipng recompression of newly
   generated PNG thumbnails (and, on the experimental branch, AVIF generation) ran inline during page render with
   no budget. With zopflipng at ~14 s/file, a cold gallery of N PNGs could add N×14 s to a visitor's request.
-  These slow passes now run in a **POST_SEND `DeferredUpdate`** (after the response is flushed, so the visitor
-  never waits) and are **bounded per request** by `OnDemandThumbLimit`. They operate on the **stored** thumbnail
-  (the temp pre-storage file is gone by POST_SEND). The fast WebP encode stays synchronous, as it is the asset the
-  rewriter serves. On the experimental branch the deferred AVIF also gains the keep-if-smaller-than-WebP guard.
+  This slow pass is now handed to a **background job** (`VaultTecMediaOptimizerThumbnailRecompress`) instead of
+  running during render: enqueuing is near-instant, and the recompression runs **out-of-band** when the queue is
+  processed on the command line (ideally `$wgJobRunRate = 0` + `runJobs.php`), so **no visitor pays for it**. It
+  operates on the **stored** thumbnail (the temp pre-storage file is gone by then) and is skipped entirely in
+  large-wiki mode (`UseJobQueue = false`). The fast WebP encode stays synchronous, as it is the asset the rewriter
+  serves. On the experimental branch the job also generates the AVIF with the keep-if-smaller-than-WebP guard.
+  **Why the CLI is better:** running the queue out-of-band (or this CLI backfill) is the only way heavy image work
+  never lands on a visitor's request — see the manual (§8) and the performance guide.
 
 ## [1.8.1]
 

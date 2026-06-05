@@ -38,7 +38,7 @@
   <div class="coverbar"></div>
   <p style="font-style:italic; font-size:15pt; color:#444;">Documentation complète d'installation et d'administration<br>
   <span style="font-size:11.5pt;">Complete installation &amp; administration guide</span></p>
-  <p class="small" style="font-size:10pt;"><b>Version 1.8.1</b> — Extension MediaWiki — Archives de Vault-Tec<br>
+  <p class="small" style="font-size:10pt;"><b>Version 1.8.2</b> — Extension MediaWiki — Archives de Vault-Tec<br>
   Document <b>bilingue FR / EN</b> · moteur libvips · GIF (gifsicle) · AVIF expérimental · dépendances · benchmarks</p>
   <p class="small" style="margin-top:16px;"><b>FR</b> · Partie française ci-dessous &nbsp;·&nbsp; <b>EN</b> · English version follows</p>
 </div>
@@ -393,8 +393,9 @@ répertoire WebP), surveillez les journaux et vérifiez les droits du répertoir
 <h2>5.4 Traitement asynchrone</h2>
 <p>Le rattrapage des fichiers existants passe par la file de tâches (JobQueue) de MediaWiki, et non par les requêtes
 web. Deux types de tâches sont définis : l'optimisation d'image standard et la recompression zopflipng/oxipng. Ce
-découplage évite de ralentir les pages et permet d'étaler la charge dans le temps. En mode « gros wiki » (§4.8), on
-court-circuite la file au profit du traitement CLI (§8.6).</p>
+découplage évite de ralentir les pages et permet d'étaler la charge dans le temps. Un troisième usage : le second
+passage zopflipng des <b>miniatures</b> nouvellement générées est lui aussi confié à un job (§8.7), pour ne jamais
+ralentir le rendu. En mode « gros wiki » (§4.8), on court-circuite la file au profit du traitement CLI (§8.6).</p>
 <h2>5.5 Stockage et cache</h2>
 <p>Les données de suivi sont conservées dans la table <code>vtmo_image_optimization</code> (une ligne par fichier
 traité). Les statistiques agrégées sont mises en cache via le cache d'objets (<code>WANObjectCache</code>) avec une
@@ -606,6 +607,22 @@ php maintenance/run.php .../optimizeImages.php --start=Foo.png --max=500 --force
 (<code>runJobs.php</code>), soit le CLI (<code>optimizeImages.php</code>). Ne lancez pas les deux en même temps sur le
 même stock : les écritures sont atomiques (pas de corruption), mais vous feriez du travail en double. Utilisez
 <code>--purge-queue</code> au besoin.</div>
+
+<h2>8.7 Le second passage des miniatures : un job, à traiter hors-ligne <span class="badge">NOUVEAU</span></h2>
+<p>Quand MediaWiki génère une nouvelle miniature PNG, l'extension produit immédiatement son WebP (rapide,
+&lt; 50 ms). En revanche, le <b>second passage zopflipng</b> sur cette miniature — purement un gain de disque —
+coûte <b>plusieurs secondes par fichier</b> (≈ 14 s, cf. §16). Le lancer pendant le rendu ferait payer ce temps
+au <b>visiteur</b> : une galerie de 30 PNG en cache froid pourrait ajouter des <b>minutes</b> à l'affichage d'une
+page. C'est pourquoi ce second passage n'est <b>pas</b> exécuté en ligne : il est confié à un <b>job</b>
+(<code>VaultTecMediaOptimizerThumbnailRecompress</code>) qui recompresse la miniature stockée en arrière-plan.</p>
+<div class="box"><b>Pourquoi la génération via la ligne de commande est meilleure.</b> Un job n'est utile que
+s'il est traité <b>hors des requêtes des visiteurs</b>. Par défaut, MediaWiki exécute la file en fin de requête
+(<code>$wgJobRunRate</code>) : le traitement lourd retombe alors sur un visiteur. La bonne configuration est
+<code>$wgJobRunRate = 0;</code> + un <code>runJobs.php</code> lancé en <b>SSH/cron</b> (ou le backfill CLI
+<code>optimizeImages.php</code>, §8.6). Ainsi tout l'encodage lourd s'exécute sur un processus serveur dédié,
+<b>jamais sur le temps de réponse d'un visiteur</b> — c'est la même règle que pour l'optimisation des originaux
+(§8.1). En <b>mode gros wiki</b> (<code>UseJobQueue = false</code>, §4.8), ce job n'est pas enfilé du tout :
+l'administrateur recompresse les miniatures à son rythme.</div>
 
 <h1>9. Dépannage</h1>
 <h2>9.1 « is not a valid JSON file » au démarrage</h2>
@@ -1300,6 +1317,21 @@ queue).</p>
 <div class="box"><b>One path at a time</b> for a given corpus: either the queue (<code>runJobs.php</code>) or the CLI
 (<code>optimizeImages.php</code>). Don't run both at once on the same stock (atomic writes = no corruption, but
 duplicated work). Use <code>--purge-queue</code> if needed.</div>
+
+<h2>8.7 The thumbnail second pass is a job — process it off-line <span class="badge">NEW</span></h2>
+<p>When MediaWiki generates a new PNG thumbnail, the extension immediately produces its WebP (fast, &lt; 50 ms).
+The <b>zopflipng second pass</b> on that thumbnail, however — a pure disk gain — costs <b>seconds per file</b>
+(≈ 14 s, see §16). Running it during render would make the <b>visitor</b> pay that time: a cold gallery of 30
+PNGs could add <b>minutes</b> to a page load. So this second pass is <b>not</b> run inline; it is handed to a
+<b>job</b> (<code>VaultTecMediaOptimizerThumbnailRecompress</code>) that recompresses the stored thumbnail in the
+background.</p>
+<div class="box"><b>Why command-line generation is better.</b> A job only helps if it is processed <b>off the
+visitor requests</b>. By default MediaWiki runs the queue at the end of a request (<code>$wgJobRunRate</code>),
+which pushes the heavy work back onto a visitor. The right setup is <code>$wgJobRunRate = 0;</code> plus a
+<code>runJobs.php</code> launched over <b>SSH/cron</b> (or the CLI backfill <code>optimizeImages.php</code>,
+§8.6). Then all heavy encoding runs on a dedicated server process, <b>never on a visitor's response time</b> —
+the same rule as for original optimization (§8.1). In <b>large-wiki mode</b> (<code>UseJobQueue = false</code>,
+§4.8), this job is not enqueued at all: the admin recompresses thumbnails on their own schedule.</div>
 
 <h1>9. Troubleshooting</h1>
 <h2>9.1 “is not a valid JSON file” at startup</h2>

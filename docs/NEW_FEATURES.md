@@ -15,6 +15,8 @@ numbers (e.g. *§4*) refer to the PDF. **Français** first, **English** below.
 
 **Correctifs 1.8.1** — métadonnées MediaWiki (`img_sha1`/`img_size`) **resynchronisées** après la 1ʳᵉ passe en place ; **GIF animés jamais figés** : sous GD (1ʳᵉ frame seulement) le WebP/AVIF est refusé et le GIF animé conservé ; les GIF statiques se convertissent correctement (palette → truecolor).
 
+**Correctif 1.8.2 (latence)** — le **2ᵉ passage zopflipng des miniatures** ne tourne plus dans le rendu : il est confié à un **job** (`VaultTecMediaOptimizerThumbnailRecompress`). Comme pour les originaux, traitez la file **hors requête** (`$wgJobRunRate = 0` + `runJobs.php`) pour qu'**aucun visiteur** ne paie ce traitement lent (~14 s/fichier). Sauté en mode gros wiki.
+
 > 📊 **Benchmarks & coût/bénéfice honnête** (bande passante au niveau *miniature*, le WebP qui *ajoute* du disque, installation des dépendances) : voir le guide **Performances & Bonnes-Pratiques** — [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (PDF bilingue, 13 graphiques ; modèle reproductible : `docs/benchmarks/model.py`).
 
 ## A. Nouveaux paramètres de configuration (complète le §4)
@@ -127,6 +129,8 @@ comme manquant : il n'est pas servi et est régénéré.
 **`--format` filter (CLI backfill)** — `php maintenance/optimizeImages.php --format=gif` (or `--format=png,jpeg`): restrict a run to a subset of the configured formats.
 
 **1.8.1 fixes** — MediaWiki metadata (`img_sha1`/`img_size`) **refreshed** after the in-place first pass; **animated GIFs are never frozen**: under GD (first frame only) the WebP/AVIF is refused and the animated GIF kept; still GIFs convert correctly (palette → truecolor).
+
+**1.8.2 fix (latency)** — the **thumbnail zopflipng second pass** no longer runs during render: it is handed to a **job** (`VaultTecMediaOptimizerThumbnailRecompress`). As with originals, process the queue **off-request** (`$wgJobRunRate = 0` + `runJobs.php`) so **no visitor** pays for the slow pass (~14 s/file). Skipped in large-wiki mode.
 
 > 📊 **Honest benchmarks & cost/benefit** (thumbnail-level bandwidth, WebP that *adds* disk, dependency install): see the **Performance & Best-Practices** guide — [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (bilingual PDF, 13 charts; reproducible model: `docs/benchmarks/model.py`).
 

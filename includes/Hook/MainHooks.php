@@ -3,7 +3,6 @@
 namespace MediaWiki\Extension\VaultTecMediaOptimizer\Hook;
 
 use MediaWiki\Config\ServiceOptions;
-use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PngRecompressorInterface;
@@ -44,8 +43,6 @@ class MainHooks implements
 	private JobQueueGroup $jobQueueGroup;
 	private PngRecompressorInterface $zopfli;
 	private LoggerInterface $logger;
-	/** Per-request budget for the slow thumbnail second pass (zopfli). Lazy-init. */
-	private ?int $thumbExtraBudget = null;
 
 	public function __construct(
 		HtmlRewriter $htmlRewriter,
@@ -150,9 +147,9 @@ class MainHooks implements
 	 *
 	 * Only the fast WebP encode runs synchronously here (a typical 200KB thumb
 	 * is <50ms, and a given thumb triggers this hook only once, when first
-	 * generated). The SLOW zopflipng second pass is deferred to a POST_SEND
-	 * update and bounded per request, so it never adds to a visitor's render
-	 * latency (see below).
+	 * generated). The SLOW zopflipng second pass is enqueued as a background
+	 * job (processed out-of-band — ideally via runJobs.php with $wgJobRunRate=0;
+	 * see the docs), so it never blocks a visitor's render.
 	 *
 	 * We work entirely with the tmpThumbPath (filesystem path, guaranteed)
 	 * and write into our parallel images_webp/ tree.
@@ -247,57 +244,34 @@ class MainHooks implements
 			] );
 		}
 
-		// Second pass (zopflipng) on the thumbnail PNG: a disk-only gain that is
-		// FAR too slow to run while a visitor's page renders — zopflipng costs
-		// seconds per file (see the benchmarks). We bound it per request with the
-		// same budget as the on-demand rewriter (OnDemandThumbLimit) and defer it
-		// to a POST_SEND update (run after the response is flushed, so the visitor
-		// never waits), operating on the STORED thumbnail — by then MediaWiki has
-		// copied the temp thumb to its final location, so we recompress that final
-		// file rather than the now-discarded $tmpThumbPath. The cheap WebP above
-		// stays synchronous (it is the asset the rewriter serves).
+		// Second pass (zopflipng) on the new PNG thumbnail: a disk-only gain that
+		// is FAR too slow to run while a visitor's page renders — zopflipng costs
+		// seconds per file (see the benchmarks). We do NOT run it inline; instead
+		// we enqueue a background job that recompresses the STORED thumbnail (by
+		// the time the job runs, MediaWiki has copied the temp thumb to its final
+		// location). Process the queue out-of-band (runJobs.php with $wgJobRunRate
+		// = 0) so no visitor ever pays for it — see the documentation. In large-wiki
+		// mode (UseJobQueue = false) we skip it; the admin recompresses on their own
+		// schedule. The cheap WebP above stays synchronous (it is the served asset).
 		$srcThumbStored = $webpInfo[2] ?? null;
 		if ( $mime === 'image/png' && $this->zopfli->isAvailable()
 			&& is_string( $srcThumbStored ) && $srcThumbStored !== ''
+			&& $this->options->get( 'VaultTecMediaOptimizerUseJobQueue' )
 		) {
-			if ( $this->thumbExtraBudget === null ) {
-				$this->thumbExtraBudget = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
-			}
-			if ( $this->thumbExtraBudget > 0 ) {
-				$this->thumbExtraBudget--;
-				$name = $file->getName();
-				DeferredUpdates::addCallableUpdate( function () use ( $srcThumbStored, $name ) {
-					$this->runDeferredThumbZopfli( $srcThumbStored, $name );
-				} );
-			} else {
-				$this->logger->debug(
-					'Thumb zopfli skipped for {name}: per-request budget spent',
-					[ 'name' => $file->getName() ]
+			$jobTitle = Title::makeTitleSafe( NS_FILE, $file->getName() );
+			if ( $jobTitle ) {
+				$this->jobQueueGroup->lazyPush(
+					new JobSpecification(
+						'VaultTecMediaOptimizerThumbnailRecompress',
+						[ 'srcThumb' => $srcThumbStored, 'mime' => $mime ],
+						[ 'removeDuplicates' => true ],
+						$jobTitle
+					)
 				);
 			}
 		}
 
 		return true;
-	}
-
-	/**
-	 * Run the zopflipng second pass on a STORED PNG thumbnail AFTER the response
-	 * has been sent (POST_SEND deferred update), so it never adds to a visitor's
-	 * render latency. Bounded per request by the caller's budget.
-	 */
-	private function runDeferredThumbZopfli( string $srcThumbStored, string $name ): void {
-		if ( !is_file( $srcThumbStored ) ) {
-			return;
-		}
-		try {
-			$saved = $this->zopfli->recompress( $srcThumbStored );
-			if ( $saved !== null && $saved > 0 ) {
-				$this->record->addThumbZopfliSaving( $saved );
-			}
-		} catch ( Throwable $e ) {
-			$this->logger->debug( 'Deferred zopfli thumb failed for {name}: {msg}',
-				[ 'name' => $name, 'msg' => $e->getMessage() ] );
-		}
 	}
 
 	/**

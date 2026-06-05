@@ -33,7 +33,7 @@
   <div class="coverbar"></div>
   <p style="font-style:italic; font-size:13pt; color:#444;">Dépendances, performances &amp; bonnes pratiques<br>
   <span style="font-size:11pt;">Dependencies, performance &amp; best practices</span></p>
-  <p class="small">Complément technique à la documentation v1.4.1 — couvre la <b>v1.8.1</b><br>
+  <p class="small">Complément technique à la documentation v1.4.1 — couvre la <b>v1.8.2</b><br>
   Moteur libvips · GIF (gifsicle) · AVIF · Coût/bénéfice réel modélisé + mesures (13 graphiques)<br>
   Document <b>bilingue FR / EN</b> — Extension MediaWiki — Archives de Vault-Tec</p>
   <p class="small" style="margin-top:18px;"><b>FR</b> · Partie française ci-dessous &nbsp;·&nbsp; <b>EN</b> · English version follows (same content)</p>
@@ -200,7 +200,7 @@ Jobs résiduels : <code>purgeQueue.php</code>.</td></tr>
 </table>
 <div class="box"><b>Ne montez pas <code>$wgJobRunRate</code></b> : cela <b>aggrave</b> le ralentissement (plus de jobs
 lourds sur les requêtes visiteurs). Pour un traitement lourd, la bonne valeur est <b>0</b>, combinée à un
-<code>runJobs.php</code> en SSH — ou le script CLI dédié.</div>
+<code>runJobs.php</code> en SSH — ou le script CLI dédié. <b>Le 2ᵉ passage zopflipng des miniatures</b> passe lui aussi par un <b>job</b> (depuis la 1.8.2) : même règle — traitez la file hors requête pour qu'aucun visiteur ne paie ce temps.</div>
 <ul>
 <li><b>Choisissez le moteur selon le volume.</b> Grosse photothèque → <b>libvips</b> (mémoire/vitesse, §4.4).</li>
 <li><b>Réglez <code>OnDemandThumbLimit</code></b> (défaut 5) : bas = premiers rendus plus légers ; <code>0</code> = tout par le backfill.</li>
@@ -217,7 +217,7 @@ souvent oublié pour réduire réellement la bande passante.</li>
 </ul>
 
 <p class="small" style="margin-top:18px; border-top:1px solid #c9d6e3; padding-top:6px;">
-Vault-Tec Media Optimizer — complément v1.8.1. Benchmarks mesurés et pondérés sur environnement de test.
+Vault-Tec Media Optimizer — complément v1.8.2. Benchmarks mesurés et pondérés sur environnement de test.
 Guide complet : PDF v1.4.1 · Nouveautés : <code>docs/NEW_FEATURES.md</code> · Journal : <code>CHANGELOG.md</code>.</p>
 
 <!-- ############################################################## -->
@@ -379,7 +379,7 @@ Leftover jobs: <code>purgeQueue.php</code>.</td></tr>
 </table>
 <div class="box"><b>Do not raise <code>$wgJobRunRate</code></b>: it <b>worsens</b> the slowdown (more heavy jobs on
 visitor requests). For heavy processing the right value is <b>0</b>, combined with <code>runJobs.php</code> over
-SSH — or the dedicated CLI script.</div>
+SSH — or the dedicated CLI script. <b>The thumbnail zopflipng second pass</b> also goes through a <b>job</b> (since 1.8.2): same rule — process the queue off-request so no visitor pays for it.</div>
 <ul>
 <li><b>Pick the engine by volume.</b> Large media library → <b>libvips</b> (memory/speed, §4.4).</li>
 <li><b>Tune <code>OnDemandThumbLimit</code></b> (default 5): low = lighter first renders; <code>0</code> = everything via the backfill.</li>
@@ -396,7 +396,7 @@ forgotten lever to actually cut bandwidth.</li>
 </ul>
 
 <p class="small" style="margin-top:18px; border-top:1px solid #c9d6e3; padding-top:6px;">
-Vault-Tec Media Optimizer — v1.8.1 supplement. Benchmarks measured and weighted on a test environment.
+Vault-Tec Media Optimizer — v1.8.2 supplement. Benchmarks measured and weighted on a test environment.
 Full guide: v1.4.1 PDF · What's new: <code>docs/NEW_FEATURES.md</code> · Changelog: <code>CHANGELOG.md</code>.</p>
 
 </body></html>
