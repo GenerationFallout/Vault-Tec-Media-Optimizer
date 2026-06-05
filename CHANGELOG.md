@@ -5,6 +5,40 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.1]
+
+### 🇫🇷 Résumé
+Correctifs de robustesse autour des originaux et des GIF, sans aucun changement de configuration.
+Après une optimisation **en place** de l'original (1ʳᵉ passe PNG/JPEG/`gifsicle`), les métadonnées
+MediaWiki (`img_sha1`, `img_size`, dimensions) sont désormais **resynchronisées** — la détection de
+doublons et l'invalidation du cache des miniatures restaient auparavant pointées sur les octets
+d'avant optimisation. Côté **GIF animés sous GD** : GD ne sait décoder que la 1ʳᵉ frame, ce qui
+produisait un WebP **figé** servi à la place de l'animation ; le WebP est maintenant **refusé** et le
+GIF animé d'origine est conservé. Et un **GIF statique** se convertit enfin correctement en WebP sous
+GD (les images à palette étaient rejetées par `imagewebp()`).
+
+### Fixed
+- **Stale `img_sha1` / `img_size` after the first pass** — `ImageProcessor` now refreshes MediaWiki's
+  stored file metadata (`LocalFile::purgeCache()` + `upgradeRow()`) whenever the in-place first pass
+  actually shrinks an original (PNG/JPEG/`gifsicle`). Previously the `image` row kept the
+  pre-optimization sha1/size, which breaks duplicate detection and thumbnail cache invalidation. Runs
+  only in the deferred job / CLI backfill, never inside the upload transaction; a refresh failure never
+  fails an otherwise-successful optimization. Mirrors `ZopfliOriginalProcessor`.
+- **Animated GIF turned into a still WebP under the GD backend** — GD can only decode a GIF's first
+  frame. Since WebP serving is decided purely by the WebP file's presence on disk, a GD-encoded WebP
+  replaced the animation with a frozen image. A new `GifAnimationDetector` now lets `GdOptimizer` refuse
+  the conversion (no WebP written, original animated GIF kept) and lets `ImageProcessor` record such
+  files as **complete with no WebP** instead of failing. Both the upload pipeline and on-demand
+  thumbnail generation are covered. Imagick/libvips produce genuine animated WebP and are unaffected.
+- **Still GIF → WebP failed under GD** — `imagewebp()` rejects palette images, so single-frame GIFs
+  never got a WebP under GD. `GdOptimizer` now promotes GIF input to truecolor (preserving transparency
+  as alpha) before encoding.
+
+### Tests
+- **`tests/integration/gifAnimatedWebp.php`** — drives the real `GifAnimationDetector`, `GdOptimizer`
+  and `ImageProcessor` (GD backend) over real `gifsicle`/`convert`-generated GIFs: animated GIFs are
+  kept intact with no WebP, still GIFs convert to a valid WebP.
+
 ## [1.8.0]
 
 ### 🇫🇷 Résumé

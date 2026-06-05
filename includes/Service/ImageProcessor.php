@@ -185,6 +185,38 @@ class ImageProcessor {
 						[ 'name' => $imgName ]
 					);
 				}
+
+				// If the first pass actually changed the original's bytes, keep
+				// MediaWiki's stored metadata in sync. Otherwise img_sha1/img_size
+				// stay pinned to the pre-optimization bytes, which breaks duplicate
+				// detection and thumbnail cache invalidation. The keep-if-smaller
+				// guards mean a strict size decrease is a reliable "bytes changed"
+				// signal. Mirrors ZopfliOriginalProcessor::refreshFileMetadata().
+				if ( $optimizedSize < $originalSize ) {
+					$this->refreshFileMetadata( $file );
+				}
+			}
+
+			// 2b. Animated GIF + a backend that cannot encode animated WebP (GD):
+			// do NOT emit a WebP. A GD-encoded WebP carries only the first frame
+			// and, because serving is decided purely by the WebP file's presence
+			// on disk (see HtmlRewriter), it would replace the animation with a
+			// still image. We instead keep the (already losslessly gifsicle-
+			// optimized) GIF as the served asset and record success with no WebP.
+			// Imagick/libvips support animated WebP and never reach this branch.
+			if ( $mime === 'image/gif'
+				&& !$optimizer->supportsAnimatedWebP()
+				&& GifAnimationDetector::isAnimated( $path )
+			) {
+				$this->record->markComplete(
+					$imgName, $originalSize, $optimizedSize, 0, $optimizer->getName()
+				);
+				$this->logger->info(
+					'Animated GIF {name}: kept original (backend {backend} cannot encode '
+						. 'animated WebP); no WebP generated',
+					[ 'name' => $imgName, 'backend' => $optimizer->getName() ]
+				);
+				return true;
 			}
 
 			// 3. Generate WebP
@@ -248,6 +280,35 @@ class ImageProcessor {
 			] );
 			$this->record->markFailed( $imgName, 'Exception: ' . $e->getMessage() );
 			return false;
+		}
+	}
+
+	/**
+	 * Refresh MediaWiki's stored metadata for a file whose bytes changed during
+	 * the first-pass in-place optimization.
+	 *
+	 * LocalFile::upgradeRow() recomputes img_size, img_sha1, width, height and
+	 * metadata from the actual file and writes them back to the `image` table —
+	 * exactly what is needed after a lossless recompression so duplicate
+	 * detection and thumbnail invalidation keep working. Guarded by
+	 * method_exists() so non-LocalFile repos (and the test stubs) degrade to a
+	 * no-op, and wrapped so a refresh failure never fails an otherwise-successful
+	 * optimization. Only ever called from the deferred job / CLI backfill, never
+	 * inside the upload transaction.
+	 */
+	private function refreshFileMetadata( File $file ): void {
+		try {
+			if ( method_exists( $file, 'purgeCache' ) ) {
+				$file->purgeCache();
+			}
+			if ( method_exists( $file, 'upgradeRow' ) ) {
+				$file->upgradeRow();
+			}
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Metadata refresh failed for {name}: {msg}', [
+				'name' => $file->getName(),
+				'msg' => $e->getMessage(),
+			] );
 		}
 	}
 

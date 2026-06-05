@@ -57,3 +57,27 @@ optimization is **lossless and animation-safe**:
 ```bash
 php tests/integration/gif.php
 ```
+
+## `gifAnimatedWebp.php` — animated-GIF / WebP safety (GD backend)
+
+Proves the GD backend never turns an animation into a frozen image. GD can only
+decode a GIF's first frame, so emitting a WebP for an animated GIF would replace
+the animation with a still once it is served. Drives the real
+`GifAnimationDetector`, `GdOptimizer` and `ImageProcessor` (forced GD backend)
+over real `gifsicle`/`convert`-generated GIFs:
+
+1. **Detection** — animated vs still GIF told apart (missing file ⇒ not animated).
+2. **GD refusal** — `convertToWebP()` on an animated GIF returns `false` with no
+   file written; a still GIF still converts to a valid WebP (palette → truecolor).
+3. **End-to-end** — through `ImageProcessor`: an animated GIF is recorded
+   `complete` with **no WebP on disk** and the animation preserved, while a still
+   GIF gets its WebP. (Imagick/libvips produce animated WebP and are unaffected.)
+
+### Requirements
+- PHP **GD** extension **with WebP support**.
+- **gifsicle** and ImageMagick **`convert`** on PATH.
+
+### Run
+```bash
+php tests/integration/gifAnimatedWebp.php
+```

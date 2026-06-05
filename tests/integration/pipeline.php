@@ -77,6 +77,7 @@ namespace {
 	require "$R/Optimizer/VipsOptimizer.php";
 	require "$R/Optimizer/OptimizerFactory.php";
 	require "$R/Storage/WebPRepo.php";
+	require "$R/Service/GifAnimationDetector.php";
 	require "$R/Service/GifOptimizer.php";
 	require "$R/Service/ImageProcessor.php";
 	require "$R/Service/HtmlRewriter.php";
