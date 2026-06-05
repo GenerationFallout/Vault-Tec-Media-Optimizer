@@ -91,7 +91,7 @@ class VipsOptimizer implements OptimizerInterface {
 			return false;
 		}
 		$tmp = $this->uniqueTempPath( $path );
-		if ( !$this->saveWithOptionalStrip( 'pngsave', $path, $tmp, 'compression=9' ) ) {
+		if ( !$this->saveWithOptionalStrip( [ 'pngsave', $path, $tmp, '--compression', '9' ] ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
@@ -107,11 +107,11 @@ class VipsOptimizer implements OptimizerInterface {
 			return false;
 		}
 		// Re-encode at a high quality (like the Imagick path, this is not strictly
-		// lossless; true lossless JPEG would need jpegtran/mozjpeg). optimize_coding
+		// lossless; true lossless JPEG would need jpegtran/mozjpeg). --optimize-coding
 		// shrinks the Huffman tables. trellis quant is intentionally NOT requested:
 		// it errors on non-mozjpeg vips builds, which would abort the encode.
 		$tmp = $this->uniqueTempPath( $path );
-		if ( !$this->saveWithOptionalStrip( 'jpegsave', $path, $tmp, 'Q=92,optimize_coding=true' ) ) {
+		if ( !$this->saveWithOptionalStrip( [ 'jpegsave', $path, $tmp, '--Q', '92', '--optimize-coding' ] ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
@@ -121,39 +121,42 @@ class VipsOptimizer implements OptimizerInterface {
 	}
 
 	/**
-	 * Run a vips saver into $tmp with the given base options, adding strip=true
-	 * when metadata stripping is enabled. If the strip-enabled save fails — recent
-	 * libvips (>= 8.15) deprecated the 'strip' option in favour of 'keep', and a
-	 * build may reject it — retry once WITHOUT strip: optimizing without stripping
-	 * beats skipping the file (and the original is untouched on failure thanks to
-	 * keep-if-smaller). Sets lastError on hard failure. Returns true if $tmp was
-	 * written.
+	 * Run a vips saver, given as an argv array WITHOUT any metadata flag, where
+	 * index 2 is the output path. When metadata stripping is enabled we append
+	 * "--keep none" (libvips >= 8.15; older builds used --strip and lack --keep).
 	 *
-	 * @param string $op vips operation ('pngsave'|'jpegsave')
-	 * @param string $src Source path
-	 * @param string $tmp Destination temp path
-	 * @param string $baseOpts Comma-separated vips save options, without strip
+	 * IMPORTANT: vips save options must be passed as separate "--name value"
+	 * flags. The inline "out[opt=val]" form is NOT honoured by an explicit save
+	 * operation — vips would create a file literally named "out[opt=val]" and
+	 * the real output would never appear at $tmp.
+	 *
+	 * If the strip attempt fails, retry once WITHOUT it: optimizing without
+	 * stripping beats skipping the file (and the original is untouched on failure
+	 * thanks to keep-if-smaller). Sets lastError on hard failure.
+	 *
+	 * @param string[] $args [ op, src, out, ...format flags ]
 	 * @return bool
 	 */
-	private function saveWithOptionalStrip( string $op, string $src, string $tmp, string $baseOpts ): bool {
+	private function saveWithOptionalStrip( array $args ): bool {
 		$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
-		$opts = $baseOpts . ( $strip ? ',strip=true' : '' );
-		$code = $this->runVips( [ $op, $src, $tmp . '[' . $opts . ']' ] );
+		$out = $args[2] ?? '';
+		$code = $this->runVips( $strip ? array_merge( $args, [ '--keep', 'none' ] ) : $args );
 		if ( $code === 0 ) {
 			return true;
 		}
 		if ( $strip ) {
-			// The deprecated 'strip' option may be the culprit; retry without it.
-			if ( is_file( $tmp ) ) {
-				@unlink( $tmp );
+			// "--keep none" may be unsupported on an older build; retry without it.
+			if ( $out !== '' && is_file( $out ) ) {
+				@unlink( $out );
 			}
-			$code = $this->runVips( [ $op, $src, $tmp . '[' . $baseOpts . ']' ] );
+			$code = $this->runVips( $args );
 			if ( $code === 0 ) {
-				$this->logger->debug( 'vips {op}: retried without the deprecated strip option', [ 'op' => $op ] );
+				$this->logger->debug( 'vips {op}: retried without the metadata-strip flag',
+					[ 'op' => $args[0] ?? 'save' ] );
 				return true;
 			}
 		}
-		$this->lastError = "vips $op exited with code $code";
+		$this->lastError = 'vips ' . ( $args[0] ?? 'save' ) . " exited with code $code";
 		return false;
 	}
 
@@ -165,13 +168,20 @@ class VipsOptimizer implements OptimizerInterface {
 		}
 
 		// Load all frames for GIF so animated GIFs become animated WebP; for
-		// single-frame inputs n=-1 is harmless.
+		// single-frame inputs the loader ignores it. Input load options (unlike
+		// save options) ARE honoured inline on the source filename.
 		$srcExt = strtolower( pathinfo( $sourcePath, PATHINFO_EXTENSION ) );
 		$loadArg = $sourcePath . ( $srcExt === 'gif' ? '[n=-1]' : '' );
 
-		$opts = $lossless ? 'lossless=true' : ( 'Q=' . $quality );
 		$tmp = $this->uniqueTempPath( $destPath );
-		$code = $this->runVips( [ 'webpsave', $loadArg, $tmp . '[' . $opts . ']' ] );
+		$args = [ 'webpsave', $loadArg, $tmp, '--effort', '6' ];
+		if ( $lossless ) {
+			$args[] = '--lossless';
+		} else {
+			$args[] = '--Q';
+			$args[] = (string)$quality;
+		}
+		$code = $this->runVips( $args );
 		if ( $code !== 0 ) {
 			$this->lastError = "vips webpsave exited with code $code";
 			if ( is_file( $tmp ) ) {
