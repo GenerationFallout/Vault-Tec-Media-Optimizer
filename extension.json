@@ -200,6 +200,10 @@
 		"VaultTecMediaOptimizerVipsBinary": {
 			"value": "vips",
 			"description": "Path to the libvips 'vips' binary, or just the command name to look up on PATH. Only used when VaultTecMediaOptimizerImageEngine is 'vips'. Requires shell execution (proc_open/exec) to be allowed."
+		},
+		"VaultTecMediaOptimizerUseJobQueue": {
+			"value": true,
+			"description": "When true (default), each upload enqueues a background optimization job. Set false on large wikis to STOP using the job queue: uploads are then NOT auto-optimized — run maintenance/optimizeImages.php from the command line on your own schedule instead. Thumbnails still get their WebP on-demand at render time, so visitors keep getting WebP; only the original's optimization waits for the CLI run. Avoids flooding the queue."
 		}
 	},
 	"manifest_version": 2

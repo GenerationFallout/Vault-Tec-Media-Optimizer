@@ -98,6 +98,7 @@
 	"vaulttecmediaoptimizer-check-avif-enabled": "Génération AVIF (expérimentale)",
 	"vaulttecmediaoptimizer-check-vips": "Binaire libvips",
 	"vaulttecmediaoptimizer-check-image-engine": "Moteur d'image",
+	"vaulttecmediaoptimizer-check-jobqueue": "File de jobs",
 	"vaulttecmediaoptimizer-check-upload-dir": "Répertoire d'upload",
 	"vaulttecmediaoptimizer-check-filebackend": "Backend de fichiers",
 	"vaulttecmediaoptimizer-check-webp-dir": "Répertoire WebP",
