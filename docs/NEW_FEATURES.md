@@ -136,6 +136,13 @@ HEIC sans encodeur AV1) : sinon l'AVIF est **sauté proprement** (le WebP reste 
 `Spécial:VaultTec_État` affiche la prise en charge AVIF. L'AVIF n'est pas suivi dans les statistiques
 (expérimental). Encodage **lent** → off par défaut.
 
+**AVIF servi uniquement s'il est plus petit que le WebP.** L'AVIF n'est pas toujours plus compact que le
+WebP (cela dépend du contenu, de la qualité et de l'encodeur — il peut même être **plus gros** en haute qualité
+ou sur du bruit). Après génération, l'extension **compare** l'AVIF au WebP correspondant et **ne le garde que
+s'il est strictement plus petit** ; sinon elle le supprime et sert le WebP. Pour ne pas ré-encoder à chaque rendu
+un AVIF jugé non rentable, un **marqueur `.skip`** est posé à côté de la cible ; il se **périme automatiquement**
+si la source change (comparaison de date). Vaut pour les originaux **et** les miniatures.
+
 ---
 
 # 🇬🇧 Documentation additions
@@ -250,3 +257,10 @@ no server-side detection (native `<picture>` negotiation).
 yet lack an AV1 encoder); if AVIF is not truly encodable, it is **skipped cleanly** (WebP keeps being served,
 no render budget wasted). `Special:VTMOStatus` reports AVIF support. AVIF is not tracked in the statistics
 (experimental). Encoding is **slow** → off by default.
+
+**AVIF is served only when it is smaller than the WebP.** AVIF is not always more compact than WebP (it depends
+on content, quality and the encoder — it can even be **larger** at high quality or on noise). After generating it,
+the extension **compares** the AVIF to the matching WebP and **keeps it only if strictly smaller**; otherwise it
+deletes it and serves WebP. To avoid re-encoding a not-worth-it AVIF on every render, a **`.skip` marker** is
+written next to the target; it **self-expires** when the source changes (mtime comparison). This applies to
+originals **and** thumbnails.

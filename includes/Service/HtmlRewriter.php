@@ -154,6 +154,12 @@ class HtmlRewriter {
 			// untouched <img> as the universal fallback.
 			$sources = '';
 
+			// Collect WebP FIRST so its files exist on disk before we decide whether
+			// each AVIF variant is worth keeping (AVIF is kept only when smaller than
+			// its WebP — see ensureDerived). We still EMIT the AVIF <source> before
+			// the WebP one, so capable browsers prefer AVIF when it actually wins.
+			$webpParts = $this->collectDerivedSrcset( $src, $tag, $uploadPath, 'webp' );
+
 			if ( $avifEnabled ) {
 				$avifParts = $this->collectDerivedSrcset( $src, $tag, $uploadPath, 'avif' );
 				if ( $avifParts ) {
@@ -163,7 +169,6 @@ class HtmlRewriter {
 				}
 			}
 
-			$webpParts = $this->collectDerivedSrcset( $src, $tag, $uploadPath, 'webp' );
 			if ( $webpParts ) {
 				$sources .= '<source srcset="'
 					. htmlspecialchars( implode( ', ', $webpParts ), ENT_QUOTES )
@@ -312,6 +317,12 @@ class HtmlRewriter {
 		if ( $ext === 'avif' && !$optimizer->supportsAvif() ) {
 			return false;
 		}
+		// Don't re-encode an AVIF we already judged not worth it for this source
+		// (unless the source thumbnail changed since). This also avoids spending
+		// the on-demand render budget on a file we would only discard again.
+		if ( $ext === 'avif' && $this->webpRepo->avifMarkedSkip( $destPath, $srcThumbPath ) ) {
+			return false;
+		}
 
 		// Make sure the destination directory exists.
 		if ( !$this->webpRepo->ensureDirFor( $destPath ) ) {
@@ -348,6 +359,30 @@ class HtmlRewriter {
 					'err' => $optimizer->getLastError() ?? 'no detail',
 				] );
 				return false;
+			}
+			if ( $ext === 'avif' ) {
+				// Keep this thumbnail's AVIF only if it is actually smaller than
+				// its sibling WebP (collected first in rewrite(), so it already
+				// exists). If it isn't smaller, discard it, remember the decision
+				// (skip marker) so we don't re-encode it on every render, and let
+				// the WebP be served. A <picture> offers AVIF before WebP, so a
+				// larger AVIF would make capable browsers download more than WebP.
+				$webpSibling = $this->webpRepo->getWebPPath( $srcThumbPath );
+				if ( $webpSibling !== null && is_file( $webpSibling ) ) {
+					$webpSz = filesize( $webpSibling );
+					$avifSz = filesize( $destPath );
+					if ( $webpSz !== false && $webpSz > 0 && $avifSz !== false && $avifSz >= $webpSz ) {
+						@unlink( $destPath );
+						$this->webpRepo->setAvifSkip( $destPath );
+						$this->logger->debug(
+							'On-demand AVIF discarded ({a} >= WebP {w} bytes); serving WebP: {dest}',
+							[ 'a' => $avifSz, 'w' => $webpSz, 'dest' => $destPath ]
+						);
+						return false;
+					}
+				}
+				// AVIF wins (or no WebP to compare): drop any stale skip marker.
+				$this->webpRepo->clearAvifSkip( $destPath );
 			}
 			$this->logger->debug( 'On-demand {ext} generated: {dest}', [ 'ext' => $ext, 'dest' => $destPath ] );
 			return is_file( $destPath );

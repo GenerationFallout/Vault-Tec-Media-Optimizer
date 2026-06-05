@@ -256,9 +256,36 @@ class ImageProcessor {
 				&& $optimizer->supportsAvif()
 			) {
 				$avifPath = $this->webpRepo->getAvifPath( $path );
-				if ( $avifPath !== null && $this->webpRepo->ensureDirFor( $avifPath ) ) {
+				// Skip entirely if a previous run already decided this file's AVIF
+				// isn't worth it (and the source hasn't changed since): no point
+				// re-encoding it just to discard it again.
+				if ( $avifPath !== null
+					&& !$this->webpRepo->avifMarkedSkip( $avifPath, $path )
+					&& $this->webpRepo->ensureDirFor( $avifPath )
+				) {
 					$avifQuality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
-					if ( !$optimizer->convertToAvif( $path, $avifPath, $avifQuality ) ) {
+					if ( $optimizer->convertToAvif( $path, $avifPath, $avifQuality ) ) {
+						// Keep the AVIF only if it is actually SMALLER than the WebP.
+						// AVIF is not always smaller than WebP (it depends on the
+						// content, the quality and the AV1 encoder), and the
+						// <picture> offers AVIF *before* WebP — so a larger AVIF
+						// would make capable browsers download more than they would
+						// with WebP. If it doesn't win, discard it, remember that
+						// decision, and let the WebP be served. Mirrors the
+						// keep-if-smaller guard used on originals.
+						$avifSize = filesize( $avifPath );
+						if ( $webpSize > 0 && $avifSize !== false && $avifSize >= $webpSize ) {
+							@unlink( $avifPath );
+							$this->webpRepo->setAvifSkip( $avifPath );
+							$this->logger->debug(
+								'AVIF discarded for {name}: {avif} >= WebP {webp} bytes (serving WebP)',
+								[ 'name' => $imgName, 'avif' => $avifSize, 'webp' => $webpSize ]
+							);
+						} else {
+							// AVIF wins: drop any stale skip marker.
+							$this->webpRepo->clearAvifSkip( $avifPath );
+						}
+					} else {
 						$this->logger->debug( 'AVIF original generation failed for {name}: {err}', [
 							'name' => $imgName,
 							'err' => $optimizer->getLastError() ?? 'no detail',

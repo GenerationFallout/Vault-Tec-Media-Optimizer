@@ -112,6 +112,70 @@ class WebPRepo {
 	}
 
 	/**
+	 * Sidecar "do not regenerate this AVIF" marker path.
+	 *
+	 * AVIF is not always smaller than WebP (it depends on content, quality and
+	 * the AV1 encoder). When a generated AVIF turns out to be >= its WebP, we
+	 * discard it and serve WebP instead (see ImageProcessor / HtmlRewriter). To
+	 * avoid re-encoding-then-discarding it on every page render, we drop a tiny
+	 * empty marker next to where the AVIF would live. The marker self-expires
+	 * when the source becomes newer than it, so a re-uploaded or regenerated
+	 * source is re-evaluated. This is a filesystem rule rather than a DB rule on
+	 * purpose: thumbnails have no per-file DB row (there can be millions), so a
+	 * sidecar marker is the only mechanism that covers both originals and thumbs.
+	 *
+	 * @param string $avifPath
+	 * @return string
+	 */
+	public function avifSkipMarker( string $avifPath ): string {
+		return $avifPath . '.skip';
+	}
+
+	/**
+	 * Whether a *fresh* "AVIF not worth it" marker exists for this source. A
+	 * marker older than the source is stale (source changed) → removed and
+	 * treated as absent so we re-evaluate.
+	 *
+	 * @param string $avifPath Target AVIF path
+	 * @param string $srcPath  Source the AVIF would be generated from
+	 * @return bool True if AVIF generation should be skipped
+	 */
+	public function avifMarkedSkip( string $avifPath, string $srcPath ): bool {
+		$marker = $this->avifSkipMarker( $avifPath );
+		if ( !is_file( $marker ) ) {
+			return false;
+		}
+		$markerTime = @filemtime( $marker );
+		if ( $markerTime === false ) {
+			return false;
+		}
+		$srcTime = @filemtime( $srcPath );
+		if ( $srcTime !== false && $srcTime > $markerTime ) {
+			// Source is newer than the decision → re-evaluate.
+			@unlink( $marker );
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Record that the AVIF is not worth keeping for this source (don't retry).
+	 */
+	public function setAvifSkip( string $avifPath ): void {
+		@touch( $this->avifSkipMarker( $avifPath ) );
+	}
+
+	/**
+	 * Clear any skip marker (the AVIF now wins, or AVIF was produced).
+	 */
+	public function clearAvifSkip( string $avifPath ): void {
+		$marker = $this->avifSkipMarker( $avifPath );
+		if ( is_file( $marker ) ) {
+			@unlink( $marker );
+		}
+	}
+
+	/**
 	 * Compute the derived-format filesystem path for a given original file path.
 	 *
 	 * @param string $originalPath
