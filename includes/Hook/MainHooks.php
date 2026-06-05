@@ -75,6 +75,14 @@ class MainHooks implements
 			return;
 		}
 
+		// Large-wiki mode: when the job queue is disabled, uploads are NOT
+		// auto-enqueued. The admin optimizes originals on their own schedule via
+		// maintenance/optimizeImages.php; thumbnails still get their WebP
+		// on-demand at render time, so visitors keep receiving WebP regardless.
+		if ( !$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' ) ) {
+			return;
+		}
+
 		$imgName = $file->getName();
 
 		// Only enqueue if the file's MIME type matches what we handle.

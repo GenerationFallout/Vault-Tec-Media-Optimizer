@@ -372,6 +372,14 @@ class PrerequisiteChecker {
 				? 'Using libvips when available (faster/lighter, same WebP quality); falls back to Imagick/GD otherwise.'
 				: 'Imagick (then GD). Set $wgVaultTecMediaOptimizerImageEngine = "vips" to use libvips.' );
 
+		$useQueue = (bool)$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' );
+		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-jobqueue',
+			self::STATUS_INFO,
+			$useQueue ? 'enabled' : 'disabled',
+			$useQueue
+				? 'Uploads enqueue a background optimization job.'
+				: 'Large-wiki mode: uploads are NOT auto-optimized. Run maintenance/optimizeImages.php from the CLI. Thumbnails still get WebP on-demand at render.' );
+
 		return $checks;
 	}
 

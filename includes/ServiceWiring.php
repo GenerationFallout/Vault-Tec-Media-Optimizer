@@ -43,6 +43,7 @@ return [
 				'VaultTecMediaOptimizerOnDemandThumbLimit',
 				'VaultTecMediaOptimizerImageEngine',
 				'VaultTecMediaOptimizerVipsBinary',
+				'VaultTecMediaOptimizerUseJobQueue',
 				'UploadDirectory',
 				'UploadPath',
 			],

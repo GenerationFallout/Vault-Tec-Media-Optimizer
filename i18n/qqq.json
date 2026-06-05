@@ -96,6 +96,7 @@
 	"vaulttecmediaoptimizer-check-gd-webp": "Check label: GD WebP support.",
 	"vaulttecmediaoptimizer-check-vips": "Check label: whether the optional libvips binary is usable.",
 	"vaulttecmediaoptimizer-check-image-engine": "Check label: which image backend (auto/vips) is configured.",
+	"vaulttecmediaoptimizer-check-jobqueue": "Check label: whether uploads enqueue optimization jobs.",
 	"vaulttecmediaoptimizer-check-upload-dir": "Check label: upload directory.",
 	"vaulttecmediaoptimizer-check-filebackend": "Check label: file backend type.",
 	"vaulttecmediaoptimizer-check-webp-dir": "Check label: WebP directory.",
