@@ -5,6 +5,28 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.0]
+
+### 🇫🇷 Résumé
+Ajoute l'**optimisation GIF sans perte** (binaire externe `gifsicle`, `-O3`) en **première passe** :
+exécutée à l'upload **et** par le rattrapage CLI — pas de second script dédié. Strictement sans perte et
+sûre pour l'animation (jamais de redimensionnement, jamais d'altération des frames/cadence/boucle ;
+le rendu est identique au pixel près). Le script de rattrapage gagne une option **`--format`** pour ne
+traiter que certains formats (ex. `--format=gif`). Désactivé par défaut, opt-in.
+
+### Added
+- **Lossless GIF optimization** — `$wgVaultTecMediaOptimizerGifsicleEnabled` (default `false`),
+  `$wgVaultTecMediaOptimizerGifsicleBinary` (default `gifsicle`), `$wgVaultTecMediaOptimizerGifsicleLevel`
+  (default `3`). First-pass, in-place, **strictly lossless and animation-safe**: only ever passes
+  `-O{level}` (structural LZW/inter-frame optimization). Never resizes, never alters frame
+  pixels/timing/loop counter; the rendered animation is byte-identical (verified by coalesced-frame
+  comparison). Runs on upload and during `maintenance/optimizeImages.php` — **no separate second-pass
+  job**. Keep-if-smaller anti-bloat guard + atomic replace. WebP generation always proceeds regardless;
+  a missing/disabled `gifsicle` is a harmless no-op. Surfaced on `Special:VTMOStatus`.
+- **`--format` filter for `maintenance/optimizeImages.php`** — restrict a catch-up run to a subset of the
+  configured formats (e.g. `--format=gif`, `--format=png,jpeg`). Accepts short names or full MIME types;
+  intersected with `$wgVaultTecMediaOptimizerFormats` so a disabled type is never processed.
+
 ## [1.7.0]
 
 ### 🇫🇷 Résumé

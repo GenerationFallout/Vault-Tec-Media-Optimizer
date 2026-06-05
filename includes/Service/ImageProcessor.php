@@ -30,6 +30,7 @@ class ImageProcessor {
 	private WebPRepo $webpRepo;
 	private OptimizationRecord $record;
 	private RepoGroup $repoGroup;
+	private GifOptimizer $gifOptimizer;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -38,6 +39,7 @@ class ImageProcessor {
 		WebPRepo $webpRepo,
 		OptimizationRecord $record,
 		RepoGroup $repoGroup,
+		GifOptimizer $gifOptimizer,
 		LoggerInterface $logger
 	) {
 		$this->options = $options;
@@ -45,6 +47,7 @@ class ImageProcessor {
 		$this->webpRepo = $webpRepo;
 		$this->record = $record;
 		$this->repoGroup = $repoGroup;
+		$this->gifOptimizer = $gifOptimizer;
 		$this->logger = $logger;
 	}
 
@@ -150,8 +153,23 @@ class ImageProcessor {
 						$success = $optimizer->optimizeJpeg( $path );
 						break;
 					case 'image/gif':
-						// GIF: we don't optimize the original (no benefit / risks
-						// breaking animation). We'll just generate the WebP.
+						// GIF first pass: optional, lossless, animation-safe
+						// structural optimization via the external gifsicle
+						// binary (-O3). It never resizes and never alters frame
+						// pixels/timing/loop; the rendered animation is identical
+						// (keep-if-smaller guard inside the optimizer).
+						//
+						// We always report success=true so WebP generation
+						// proceeds regardless: when gifsicle is disabled or
+						// unavailable, optimize() is a harmless no-op (returns
+						// null) and we simply leave the original untouched.
+						$saved = $this->gifOptimizer->optimize( $path );
+						if ( $saved === null && $this->gifOptimizer->isAvailable() ) {
+							$this->logger->debug(
+								'GIF optimization skipped for {name}: {err}',
+								[ 'name' => $imgName, 'err' => $this->gifOptimizer->getLastError() ?? 'no detail' ]
+							);
+						}
 						$success = true;
 						break;
 				}

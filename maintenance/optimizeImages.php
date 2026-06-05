@@ -50,6 +50,11 @@ class OptimizeImages extends Maintenance {
 			. 'the job queue. Honours $wgVaultTecMediaOptimizerImageEngine (imagick/gd/vips).'
 		);
 		$this->addOption( 'dry-run', 'Count eligible files and exit without modifying anything.' );
+		$this->addOption( 'format',
+			'Comma-separated formats to process this run (png, jpg/jpeg, gif, webp, or full '
+			. 'MIME types). Restricts to the intersection with $wgVaultTecMediaOptimizerFormats. '
+			. 'Default: all configured formats. Example: --format=gif',
+			false, true );
 		$this->addOption( 'batch', 'Rows to scan per pass (default 100).', false, true );
 		$this->addOption( 'max', 'Stop after optimizing this many files (default: no limit).', false, true );
 		$this->addOption( 'force', 'Reprocess files already marked complete/skipped too.' );
@@ -85,6 +90,30 @@ class OptimizeImages extends Maintenance {
 		$dbr = $services->getConnectionProvider()->getReplicaDatabase();
 
 		$allowedMimes = $config->get( 'VaultTecMediaOptimizerFormats' );
+
+		// Optional --format filter: restrict this run to a subset of the
+		// configured formats (e.g. only catch up GIFs). The intersection keeps
+		// us from ever processing a MIME type the admin hasn't enabled.
+		if ( $this->hasOption( 'format' ) ) {
+			$requested = $this->parseFormatFilter( (string)$this->getOption( 'format' ) );
+			if ( $requested === [] ) {
+				$this->fatalError(
+					"Invalid --format value. Use a comma-separated list of: png, jpg, jpeg, "
+					. "gif, webp (or full MIME types like image/png)."
+				);
+			}
+			$filtered = array_values( array_intersect( $allowedMimes, $requested ) );
+			if ( $filtered === [] ) {
+				$this->fatalError(
+					"None of the requested --format types are enabled in "
+					. "\$wgVaultTecMediaOptimizerFormats (" . implode( ', ', $allowedMimes ) . ").\n"
+					. "Either pick from those, or add the type to the config first."
+				);
+			}
+			$allowedMimes = $filtered;
+			$this->output( 'Format filter: ' . implode( ', ', $allowedMimes ) . "\n" );
+		}
+
 		$mimeExpr = $this->buildMimeExpression( $dbr, $allowedMimes );
 		if ( $mimeExpr === null ) {
 			$this->fatalError( 'No valid MIME types configured in $wgVaultTecMediaOptimizerFormats.' );
@@ -227,6 +256,41 @@ class OptimizeImages extends Maintenance {
 				. 'instead — they are idempotent and will simply re-run as no-ops.)'
 			);
 		}
+	}
+
+	/**
+	 * Parse the --format value into a list of canonical MIME types.
+	 *
+	 * Accepts short names (png, jpg, jpeg, gif, webp) and full MIME types
+	 * (image/png, ...). Unknown tokens are ignored; an empty result signals an
+	 * entirely invalid value to the caller.
+	 *
+	 * @param string $value Comma-separated list
+	 * @return string[] Canonical MIME types (deduplicated)
+	 */
+	private function parseFormatFilter( string $value ): array {
+		$aliases = [
+			'png' => 'image/png',
+			'jpg' => 'image/jpeg',
+			'jpeg' => 'image/jpeg',
+			'gif' => 'image/gif',
+			'webp' => 'image/webp',
+		];
+		$out = [];
+		foreach ( explode( ',', $value ) as $token ) {
+			$token = strtolower( trim( $token ) );
+			if ( $token === '' ) {
+				continue;
+			}
+			if ( isset( $aliases[$token] ) ) {
+				$out[] = $aliases[$token];
+			} elseif ( strpos( $token, '/' ) !== false ) {
+				// Full MIME type passed through as-is.
+				$out[] = $token;
+			}
+			// Anything else is ignored (invalid token).
+		}
+		return array_values( array_unique( $out ) );
 	}
 
 	/**
