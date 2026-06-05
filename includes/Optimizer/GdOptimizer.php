@@ -268,8 +268,24 @@ class GdOptimizer implements OptimizerInterface {
 					$img = @imagecreatefromjpeg( $sourcePath );
 					break;
 				case 'image/gif':
-					// First frame only (GD has no animated AVIF).
+					// Same first-frame limitation as WebP: GD has no animated
+					// AVIF, so emitting one for an animated GIF would freeze the
+					// animation once it is served (the <picture> AVIF source is
+					// chosen purely on the file existing). Refuse and keep the
+					// original animated GIF. Imagick/libvips are unaffected.
+					if ( GifAnimationDetector::isAnimated( $sourcePath ) ) {
+						$this->lastError = 'Animated GIF: GD cannot encode '
+							. 'animated AVIF (skipped to preserve the animation)';
+						return false;
+					}
 					$img = @imagecreatefromgif( $sourcePath );
+					if ( $img ) {
+						// imageavif() rejects palette images; promote to
+						// truecolor and keep GIF transparency as alpha.
+						imagepalettetotruecolor( $img );
+						imagealphablending( $img, true );
+						imagesavealpha( $img, true );
+					}
 					break;
 				default:
 					return false;

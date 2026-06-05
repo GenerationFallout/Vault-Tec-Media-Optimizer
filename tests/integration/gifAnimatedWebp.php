@@ -225,6 +225,21 @@ namespace {
 	check( 'WebP written for still GIF (RIFF)',
 		is_file( $stillWebp ) && substr( (string)file_get_contents( $stillWebp ), 0, 4 ) === 'RIFF' );
 
+	// The GD AVIF path (experimental branch) must apply the same protection.
+	// Only meaningful when this GD build can encode AVIF at all.
+	if ( method_exists( $gd, 'convertToAvif' ) && $gd->supportsAvif() ) {
+		echo "\n== 2b. GdOptimizer::convertToAvif refusal ==\n";
+		$animAvif = "$work/anim.avif";
+		$stillAvif = "$work/still.avif";
+		$okAnimAvif = $gd->convertToAvif( $anim, $animAvif, 50 );
+		check( 'convertToAvif(animated) returns false', $okAnimAvif === false );
+		check( 'no AVIF file written for animated GIF', !is_file( $animAvif ) );
+		check( 'no orphan temp next to refused AVIF', ( glob( "$work/anim.avif.vtmo.*" ) ?: [] ) === [] );
+		$okStillAvif = $gd->convertToAvif( $still, $stillAvif, 50 );
+		check( 'convertToAvif(still) returns true', $okStillAvif === true );
+		check( 'AVIF written for still GIF', is_file( $stillAvif ) && filesize( $stillAvif ) > 0 );
+	}
+
 	echo "\n== 3. End-to-end via real ImageProcessor (GD backend) ==\n";
 	$IMG = "$work/images";
 	@mkdir( "$IMG/a/aa", 0777, true );
