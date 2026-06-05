@@ -148,9 +148,11 @@ class MainHooks implements
 	 * matching WebP version next to the thumbnail so the HtmlRewriter can
 	 * serve it via <picture>.
 	 *
-	 * This runs synchronously during page render, but only for newly-generated
-	 * thumbs (existing thumbs are cached and won't re-trigger this hook).
-	 * For a typical 200KB thumb the WebP encode takes <50ms.
+	 * Only the fast WebP encode runs synchronously here (a typical 200KB thumb
+	 * is <50ms, and a given thumb triggers this hook only once, when first
+	 * generated). The SLOW zopflipng second pass is deferred to a POST_SEND
+	 * update and bounded per request, so it never adds to a visitor's render
+	 * latency (see below).
 	 *
 	 * We work entirely with the tmpThumbPath (filesystem path, guaranteed)
 	 * and write into our parallel images_webp/ tree.
