@@ -77,6 +77,7 @@ namespace {
 	require "$R/Optimizer/VipsOptimizer.php";
 	require "$R/Optimizer/OptimizerFactory.php";
 	require "$R/Storage/WebPRepo.php";
+	require "$R/Service/GifOptimizer.php";
 	require "$R/Service/ImageProcessor.php";
 	require "$R/Service/HtmlRewriter.php";
 	require "$R/Service/PngRecompressorInterface.php";
@@ -128,6 +129,9 @@ namespace {
 		'VaultTecMediaOptimizerZopfliEnabled' => true,
 		'VaultTecMediaOptimizerZopfliBinary' => 'zopflipng',
 		'VaultTecMediaOptimizerZopfliIterations' => 15,
+		'VaultTecMediaOptimizerGifsicleEnabled' => false,
+		'VaultTecMediaOptimizerGifsicleBinary' => 'gifsicle',
+		'VaultTecMediaOptimizerGifsicleLevel' => 3,
 		'UploadDirectory' => $IMG,
 		'UploadPath' => '/images',
 	] );
@@ -143,7 +147,8 @@ namespace {
 	$repoGroup = new RepoGroup( new LocalRepo() );
 	$file = new File( 'Test.png', $origRel, $origAbs, 'image/png', $origStart );
 	$repoGroup->getLocalRepo()->files['Test.png'] = $file;
-	$processor = new ( $NS . 'Service\\ImageProcessor' )( $opts, $factory, $webpRepo, $record, $repoGroup, $logger );
+	$gifOptimizer = new ( $NS . 'Service\\GifOptimizer' )( $opts, $logger );
+	$processor = new ( $NS . 'Service\\ImageProcessor' )( $opts, $factory, $webpRepo, $record, $repoGroup, $gifOptimizer, $logger );
 
 	$ok = $processor->processByName( 'Test.png' );
 	$webpOrig = "$BASE/images_webp/a/ab/Test.webp";
