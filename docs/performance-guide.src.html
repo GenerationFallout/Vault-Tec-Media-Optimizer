@@ -23,6 +23,8 @@
   .small{ color:#666; font-size:9pt; }
   .langsep{ page-break-before: always; }
   .flag{ font-size:9pt; color:#2e5a86; font-weight:bold; letter-spacing:1px; }
+  .chart{ width:97%; max-width:600px; display:block; margin:12px auto 2px; border:1px solid #e0e0e0; }
+  .fcap{ text-align:center; color:#666; font-size:8.5pt; margin:0 0 8px; }
 </style></head><body>
 
 <!-- ============================ COVER ============================ -->
@@ -32,7 +34,7 @@
   <p style="font-style:italic; font-size:13pt; color:#444;">Dépendances, performances &amp; bonnes pratiques<br>
   <span style="font-size:11pt;">Dependencies, performance &amp; best practices</span></p>
   <p class="small">Complément technique à la documentation v1.4.1 — couvre la <b>v1.8.1</b><br>
-  Moteur libvips · Optimisation GIF (gifsicle) · AVIF expérimental · Benchmarks réels &amp; pondérés<br>
+  Moteur libvips · GIF (gifsicle) · AVIF · Coût/bénéfice réel modélisé + mesures (13 graphiques)<br>
   Document <b>bilingue FR / EN</b> — Extension MediaWiki — Archives de Vault-Tec</p>
   <p class="small" style="margin-top:18px;"><b>FR</b> · Partie française ci-dessous &nbsp;·&nbsp; <b>EN</b> · English version follows (same content)</p>
 </div>
@@ -45,7 +47,7 @@
 <h1>1. À propos de ce document</h1>
 <p>Ce document <b>complète</b> le guide d'installation et d'administration v1.4.1 ; il ne le répète pas. Il se
 concentre sur quatre sujets : les <b>nouveautés</b> depuis la 1.4.1, l'<b>installation des dépendances</b>, des
-<b>benchmarks de performance mesurés et pondérés</b>, et les <b>bonnes pratiques anti-ralentissement</b>.
+<b>benchmarks honnêtes (modèle coût/bénéfice du wiki réel + mesures)</b>, et les <b>bonnes pratiques anti-ralentissement</b>.
 Pour la configuration générale, les pages spéciales et le dépannage, reportez-vous au guide v1.4.1 ; pour le
 détail des paramètres récents, à <code>docs/NEW_FEATURES.md</code> et <code>CHANGELOG.md</code>.</p>
 <div class="box"><b>Sans doublon.</b> Les commandes de configuration ne sont rappelées que lorsqu'elles sont
@@ -130,82 +132,45 @@ sans AV1</b> — l'extension le détecte et sert alors le WebP. Test réel de la
 <pre>vips black /tmp/p.png 16 16 && vips heifsave /tmp/p.png /tmp/p.avif --compression av1 \
   && echo "AV1 OK" || echo "AV1 indisponible"</pre>
 
-<h1>4. Benchmarks de performance (mesures réelles &amp; pondérées)</h1>
-<h2>4.1 Méthodologie</h2>
-<p>Mesures réalisées sur la machine de test : <b>PHP 8.4</b>, <b>libvips 8.15.1</b>, <b>ImageMagick 6.9.12</b>,
-<b>gifsicle 1.94</b>, <b>zopflipng</b>, <b>un seul cœur</b>. Corpus synthétique <b>varié</b> (17 fichiers réels,
-~75 Mo : photos, captures d'UI à aplats, grandes photos PNG, GIF animés). Temps = horloge murale ; mémoire = pic
-RSS via <code>/usr/bin/time</code>. <b>Pondération :</b> pour rester honnête, on n'affiche pas un seul chiffre mais
-une <b>fourchette basse / moyenne / haute</b> obtenue en agrégeant les <b>mêmes mesures par catégorie</b> selon
-<b>trois profils de wiki</b> (poids par nombre de fichiers, détaillés en §4.2) ; la bande passante est pondérée
-<b>par octets</b> (ce qui détermine réellement le trafic), le débit <b>par fichier</b>. <span class="small">Les
-chiffres absolus dépendent de la machine et des images ; ce sont les ordres de grandeur et ratios qui comptent.
-Reproduisez avec <code>tests/integration/pipeline.php</code> et vos propres images.</span></p>
-
-<h2>4.2 Résultat pondéré — fourchette basse / moyenne / haute</h2>
-<p>Les gains <b>par catégorie</b> ci-dessous sont des <b>faits mesurés</b>. Ce qui varie d'un wiki à l'autre, c'est
-leur <b>composition</b> ; pour rester honnête on en donne donc une <b>fourchette</b> via trois profils plausibles
-(mix par nombre de fichiers).</p>
-<table>
-<tr><th>Catégorie</th><th class="num">Orig. moy.</th><th class="num">→ WebP</th><th class="num">Gain mesuré</th><th class="num">Temps/fichier (vips)</th></tr>
-<tr><td>Photo JPEG → WebP q85</td><td class="num">595 Ko</td><td class="num">199 Ko</td><td class="num good">−67 %</td><td class="num">0,35 s</td></tr>
-<tr><td>PNG UI/diagramme → WebP lossless</td><td class="num">26 Ko</td><td class="num">4 Ko</td><td class="num good">−84 %</td><td class="num">0,11 s</td></tr>
-<tr><td>Grande photo PNG → WebP lossless</td><td class="num">24,0 Mo</td><td class="num">6,6 Mo</td><td class="num good">−73 %</td><td class="num">2,33 s</td></tr>
-<tr><td>GIF animé → WebP animé</td><td class="num">18 Ko</td><td class="num">8 Ko</td><td class="num good">−58 %</td><td class="num">0,09 s</td></tr>
-</table>
-<table>
-<tr><th>Profil de wiki <span class="small">(JPEG / PNG&nbsp;UI / grande&nbsp;PNG / GIF, par nb de fichiers)</span></th>
-<th class="num">Bande passante servie<br><span class="small">(pondérée octets)</span></th>
-<th class="num">Débit vips<br><span class="small">(mono-cœur)</span></th></tr>
-<tr><td><b>Moyenne basse</b> — wiki léger en médias <span class="small">(40 / 50 / 2 / 8 %)</span></td><td class="num good">−71 %</td><td class="num">~245 img/min</td></tr>
-<tr><td><b>Moyenne moyenne</b> — mix équilibré <span class="small">(50 / 30 / 8 / 12 %)</span></td><td class="num good"><b>−72 %</b></td><td class="num"><b>~150 img/min</b></td></tr>
-<tr><td><b>Moyenne haute</b> — wiki riche en médias <span class="small">(50 / 12 / 30 / 8 %)</span></td><td class="num good">−72 %</td><td class="num">~65 img/min</td></tr>
-</table>
-<p><b>Lecture honnête.</b> La <b>bande passante gagnée est remarquablement stable (~−71 à −72 %)</b> quel que soit
-le profil : quelques grosses images concentrent l'essentiel des octets, donc le ratio bouge peu même quand elles
-sont rares en nombre. <b>Ce qui varie vraiment, c'est le débit de traitement</b> — d'environ <b>~245 img/min</b>
-(wiki léger) à <b>~65 img/min</b> (wiki riche en grosses photos) sur <b>un seul cœur</b> ; parallélisez le backfill
-pour multiplier d'autant. <span class="small">Profils par nombre de fichiers ; débit pondéré fichiers, bande
-passante pondérée octets.</span></p>
-
-<h2>4.3 GIF sans perte (gifsicle) &amp; 2ᵉ passe PNG</h2>
-<table>
-<tr><th>Opération</th><th class="num">Avant</th><th class="num">Après</th><th class="num">Gain</th><th class="num">Temps</th></tr>
-<tr><td>GIF animé — gifsicle <code>-O3</code> (sans perte, sur disque)</td><td class="num">—</td><td class="num">—</td><td class="num good">−66 %</td><td class="num">~0,02 s</td></tr>
-<tr><td>PNG original — 1ʳᵉ passe (recompression sans perte)</td><td class="num">41,9 Ko</td><td class="num">32,5 Ko</td><td class="num">−22 %</td><td class="num">&lt;0,2 s</td></tr>
-<tr><td>PNG original — + 2ᵉ passe zopflipng ×15</td><td class="num">32,5 Ko</td><td class="num">28,6 Ko</td><td class="num">−12 % de plus</td><td class="num warn">13,7 s</td></tr>
-</table>
-<p><b>gifsicle</b> est quasi gratuit (~20 ms) et fait gagner <b>−66 %</b> sur les GIF, sans toucher à l'animation.
-À l'inverse, <b>zopflipng est lent</b> (≈14 s même pour un petit PNG) pour un gain disque marginal : réservez-le
-à une finition ponctuelle hors trafic, ou préférez <b>oxipng</b>.</p>
-
-<h2>4.4 Moteur : vitesse &amp; mémoire (libvips vs ImageMagick)</h2>
-<p>Même bibliothèque libwebp ⇒ <b>WebP de taille/qualité identique</b> ; on compare donc temps et mémoire.</p>
-<table>
-<tr><th>Scénario</th><th>Moteur</th><th class="num">Pic mémoire</th><th class="num">Temps</th></tr>
-<tr><td rowspan="2">Grande image 12 Mpx → WebP</td><td>libvips</td><td class="num good">98 Mo</td><td class="num">2,2 s</td></tr>
-<tr><td>ImageMagick</td><td class="num">177 Mo</td><td class="num">1,9 s</td></tr>
-<tr><td rowspan="2">Miniature 320 px (redim. + WebP)</td><td>libvips</td><td class="num good">31 Mo</td><td class="num good">0,03 s</td></tr>
-<tr><td>ImageMagick</td><td class="num">162 Mo</td><td class="num">1,2 s</td></tr>
-</table>
-<p><b>Lecture honnête.</b> Sur une grande image, libvips utilise <b>~1,8× moins de mémoire</b> (temps comparable).
-Sur le <b>pipeline de miniatures</b> — exactement la charge d'un backfill et de la génération à la volée — il est
-<b>~5× plus léger en mémoire et radicalement plus rapide</b> (la vignette n'oblige pas à décoder toute l'image).
-En clair : <b>vips vaut le coup à l'échelle</b>, pas pour quelques fichiers isolés.</p>
-<div class="box"><b>WebP lossless : qualité du moteur.</b> Sur une capture d'UI à aplats, libvips/Imagick produisent
-un vrai WebP sans perte de <b>6,9 Ko</b> là où GD (qualité 100, near-lossless) sort <b>19 Ko</b> — soit ~2,7× plus
-gros. Le moteur compte autant que le format.</div>
-
-<h2>4.5 AVIF vs WebP (expérimental)</h2>
-<table>
-<tr><th>Source</th><th class="num">WebP q85</th><th class="num">AVIF q50</th><th class="num">AVIF vs WebP</th></tr>
-<tr><td>Photo 2000×1500</td><td class="num">201 Ko</td><td class="num good">44 Ko</td><td class="num good">−78 %</td></tr>
-</table>
-<p>L'AVIF est nettement plus compact que le WebP, au prix d'un encodage plus lent. <b>Avertissement réel mesuré :</b>
-sur l'environnement de test, <code>vips heifsave … --compression av1</code> a répondu <code>Unsupported compression</code>
-(build sans AV1) ⇒ l'extension serait <b>retombée sur le WebP</b>, tandis que PHP-GD <code>imageavif()</code> était,
-lui, disponible. C'est exactement pourquoi l'extension <b>sonde réellement la capacité AV1</b> avant de produire de
-l'AVIF.</p>
+<h1>4. Benchmarks — ce que ça coûte, ce que ça rapporte</h1>
+<h2>4.1 Hypothèses &amp; méthode</h2>
+<p>Deux familles de chiffres. <b>(A)</b> un <b>modèle coût/bénéfice</b> du wiki réel, recalculé depuis des hypothèses explicites ; <b>(B)</b> des <b>mesures réelles</b> prises sur la machine de test (PHP 8.4, libvips 8.15.1, ImageMagick 6.9.12, gifsicle 1.94, zopflipng, PHP-GD ; <b>un seul cœur</b>). Tout est reproductible via <code>docs/benchmarks/model.py</code> et <code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Hypothèses du modèle</b> (unités décimales ; 365 j/an) :
+<ul>
+<li>Originaux du wiki : <b>52,62 Go</b> de PNG+JPEG (chiffre réel).</li>
+<li>Trafic en <b>borne haute (cache froid)</b> : <b>100 000 vues/jour</b>, <b>10 miniatures/page</b> → 1,0 M miniatures servies/jour. Le cache navigateur + CDN réduit fortement le trafic réel.</li>
+<li>Miniature servie moyenne <b>55,3 Ko</b> ; optimisation sans perte de la miniature −13,7 % ; WebP de la miniature −34 % (≈ <b>−43 %</b> vs brut).</li>
+<li>Recompression sans perte des originaux — 3 scénarios : <b>−7 % / −16 % / −24 %</b>.</li>
+<li>Copies WebP des originaux ≈ <b>70 %</b> de l'original optimisé, stockées <b>en plus</b>.</li>
+</ul></div>
+<p class="small"><b>Pourquoi ce cadrage ?</b> Une estimation antérieure confondait <i>compression par fichier</i> et <i>bande passante servie</i>. Les pages servent des <b>miniatures</b> (déjà petites), pas les originaux, et le WebP <b>ajoute</b> du disque puisqu'il s'ajoute aux originaux. Les figures séparent ces deux choses.</p>
+<h2>4.2 Bande passante servie — le vrai bénéfice</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bande passante servie par jour (borne haute, cache froid)"><p class="fcap">Bande passante servie par jour (borne haute, cache froid)</p>
+<p>Au niveau des <b>miniatures réellement servies</b>, le WebP fait passer le trafic de <b>~55 à ~31 Go/jour</b> (<b>−43 %</b>), soit <b>~8,7 To/an</b> — <b>en borne haute (cache froid)</b>.</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="Le To/an est une borne haute : il fond avec le cache (le −43 % reste)"><p class="fcap">Le To/an est une borne haute : il fond avec le cache (le −43 % reste)</p>
+<p>Le <b>ratio −43 % est robuste</b> ; le <b>To/an absolu est une borne haute</b> : les images sont très « cachables », donc avec un CDN/navigateur l'économie réelle n'est qu'une fraction de ce chiffre.</p>
+<h2>4.3 Disque : le WebP en AJOUTE</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disque occupé : avant / optimisé / avec WebP (3 scénarios)"><p class="fcap">Disque occupé : avant / optimisé / avec WebP (3 scénarios)</p>
+<p>Les WebP sont stockés <b>en plus</b> des originaux : le disque <b>monte</b> (52,6 → ~75 Go au médian). Optimiser les originaux ne reprend qu'un peu (−4 à −12 Go).</p>
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Variation de disque vs aujourd'hui (négatif = repris, positif = ajouté)"><p class="fcap">Variation de disque vs aujourd'hui (négatif = repris, positif = ajouté)</p>
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="L'arbitrage : coût disque ponctuel vs économie de bande passante annuelle"><p class="fcap">L'arbitrage : coût disque ponctuel vs économie de bande passante annuelle</p>
+<p><b>L'arbitrage honnête :</b> un <b>coût disque ponctuel (~+22 Go au médian)</b> contre une <b>économie de bande passante récurrente</b>. Le WebP est un levier de <b>bande passante</b>, pas de disque.</p>
+<h2>4.4 Compression par fichier (mesurée) — ≠ bande passante</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="Compression WebP par catégorie (taille du fichier, PAS le trafic)"><p class="fcap">Compression WebP par catégorie (taille du fichier, PAS le trafic)</p>
+<p>Ces gains sont réels mais portent sur le <b>fichier lui-même</b> : un −73 % sur un PNG de 24 Mo est spectaculaire mais <b>rarement servi</b> (on sert sa miniature). D'où la modélisation séparée de la bande passante (§4.2).</p>
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)"><p class="fcap">WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)</p>
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (expérimental) — plus petit, mais AV1 requis"><p class="fcap">AVIF vs WebP (expérimental) — plus petit, mais AV1 requis</p>
+<p>Le <b>moteur compte</b> : GD n'a pas de vrai lossless. L'<b>AVIF</b> est nettement plus petit que le WebP, mais l'encodeur AV1 manquait côté vips dans l'env de test (repli WebP automatique).</p>
+<h2>4.5 GIF &amp; 2ᵉ passe PNG (disque)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF sans perte (gifsicle -O3), animation préservée"><p class="fcap">GIF sans perte (gifsicle -O3), animation préservée</p>
+<img class="chart" src="benchmarks/10-png-passes.png" alt="PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)"><p class="fcap">PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)</p>
+<p><b>gifsicle</b> : −60 à −66 % sur les GIF, sans perte ni atteinte à l'animation, pour ~20 ms. La <b>2ᵉ passe PNG (zopflipng)</b> ne grappille que ~−12 % de disque… en ~14 s : hors trafic, ou préférez oxipng.</p>
+<h2>4.6 Moteur : mémoire, vitesse, débit</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Pic mémoire : libvips vs ImageMagick (mesuré)"><p class="fcap">Pic mémoire : libvips vs ImageMagick (mesuré)</p>
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Temps : libvips vs ImageMagick (mesuré, échelle log)"><p class="fcap">Temps : libvips vs ImageMagick (mesuré, échelle log)</p>
+<p>libvips utilise ~1,8× moins de mémoire sur une grande image, et ~5× moins (et ~40× plus vite) sur le <b>pipeline de miniatures</b> — exactement la charge d'un backfill et de la génération à la volée.</p>
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Débit par profil de wiki (libvips, un cœur)"><p class="fcap">Débit par profil de wiki (libvips, un cœur)</p>
+<p>Le <b>débit</b> varie selon la richesse média (~245 à ~65 images/min sur un cœur) ; le ratio de bande passante reste ~−71/−72 %. Parallélisez le backfill pour multiplier le débit.</p>
 
 <h1>5. Bonnes pratiques anti-ralentissement</h1>
 <h2>5.1 D'où vient le risque ?</h2>
@@ -262,8 +227,7 @@ Guide complet : PDF v1.4.1 · Nouveautés : <code>docs/NEW_FEATURES.md</code> ·
 
 <h1>1. About this document</h1>
 <p>This document <b>complements</b> the v1.4.1 installation and administration guide; it does not repeat it. It
-focuses on four topics: <b>what's new</b> since 1.4.1, <b>installing the dependencies</b>, <b>measured and
-weighted performance benchmarks</b>, and <b>best practices to avoid slowing the wiki down</b>. For general
+focuses on four topics: <b>what's new</b> since 1.4.1, <b>installing the dependencies</b>, <b>honest benchmarks (real-wiki cost/benefit model + measurements)</b>, and <b>best practices to avoid slowing the wiki down</b>. For general
 configuration, special pages and troubleshooting, see the v1.4.1 guide; for recent settings in detail, see
 <code>docs/NEW_FEATURES.md</code> and <code>CHANGELOG.md</code>.</p>
 <div class="box"><b>No duplication.</b> Configuration commands are repeated here only when essential to understand a
@@ -347,79 +311,45 @@ extension detects this and serves WebP instead. Real AV1-capability test for vip
 <pre>vips black /tmp/p.png 16 16 && vips heifsave /tmp/p.png /tmp/p.avif --compression av1 \
   && echo "AV1 OK" || echo "AV1 unavailable"</pre>
 
-<h1>4. Performance benchmarks (measured &amp; weighted)</h1>
-<h2>4.1 Methodology</h2>
-<p>Measured on the test machine: <b>PHP 8.4</b>, <b>libvips 8.15.1</b>, <b>ImageMagick 6.9.12</b>,
-<b>gifsicle 1.94</b>, <b>zopflipng</b>, <b>single core</b>. A <b>varied</b> synthetic corpus (17 real files,
-~75 MB: photos, flat UI captures, large PNG photos, animated GIFs). Time = wall clock; memory = peak RSS via
-<code>/usr/bin/time</code>. <b>Weighting:</b> to stay honest, we show not a single number but a <b>low / medium /
-high range</b>, obtained by aggregating the <b>same per-category measurements</b> under <b>three wiki profiles</b>
-(weights by file count, detailed in §4.2); bandwidth is weighted <b>by bytes</b> (what actually drives traffic),
-throughput <b>by file</b>. <span class="small">Absolute numbers depend on machine and images; the orders of
-magnitude and ratios are what matter. Reproduce with <code>tests/integration/pipeline.php</code> and your own
-images.</span></p>
-
-<h2>4.2 Weighted result — low / medium / high range</h2>
-<p>The <b>per-category</b> savings below are <b>measured facts</b>. What varies from one wiki to another is their
-<b>composition</b>; to stay honest we therefore give a <b>range</b> via three plausible profiles (mix by file count).</p>
-<table>
-<tr><th>Category</th><th class="num">Avg orig.</th><th class="num">→ WebP</th><th class="num">Measured saving</th><th class="num">Time/file (vips)</th></tr>
-<tr><td>JPEG photo → WebP q85</td><td class="num">595 KB</td><td class="num">199 KB</td><td class="num good">−67%</td><td class="num">0.35 s</td></tr>
-<tr><td>UI/diagram PNG → lossless WebP</td><td class="num">26 KB</td><td class="num">4 KB</td><td class="num good">−84%</td><td class="num">0.11 s</td></tr>
-<tr><td>Large PNG photo → lossless WebP</td><td class="num">24.0 MB</td><td class="num">6.6 MB</td><td class="num good">−73%</td><td class="num">2.33 s</td></tr>
-<tr><td>Animated GIF → animated WebP</td><td class="num">18 KB</td><td class="num">8 KB</td><td class="num good">−58%</td><td class="num">0.09 s</td></tr>
-</table>
-<table>
-<tr><th>Wiki profile <span class="small">(JPEG / PNG&nbsp;UI / large&nbsp;PNG / GIF, by file count)</span></th>
-<th class="num">Served bandwidth<br><span class="small">(byte-weighted)</span></th>
-<th class="num">vips throughput<br><span class="small">(single core)</span></th></tr>
-<tr><td><b>Low average</b> — media-light wiki <span class="small">(40 / 50 / 2 / 8%)</span></td><td class="num good">−71%</td><td class="num">~245 img/min</td></tr>
-<tr><td><b>Medium average</b> — balanced mix <span class="small">(50 / 30 / 8 / 12%)</span></td><td class="num good"><b>−72%</b></td><td class="num"><b>~150 img/min</b></td></tr>
-<tr><td><b>High average</b> — media-rich wiki <span class="small">(50 / 12 / 30 / 8%)</span></td><td class="num good">−72%</td><td class="num">~65 img/min</td></tr>
-</table>
-<p><b>Honest reading.</b> The <b>bandwidth saving is remarkably stable (~−71 to −72%)</b> across every profile: a
-few large images hold most of the bytes, so the ratio barely moves even when they are rare in count. <b>What truly
-varies is processing throughput</b> — from about <b>~245 img/min</b> (media-light) to <b>~65 img/min</b>
-(media-rich, many large photos) on <b>a single core</b>; parallelize the backfill to multiply accordingly.
-<span class="small">Profiles by file count; throughput file-weighted, bandwidth byte-weighted.</span></p>
-
-<h2>4.3 Lossless GIF (gifsicle) &amp; 2nd-pass PNG</h2>
-<table>
-<tr><th>Operation</th><th class="num">Before</th><th class="num">After</th><th class="num">Saving</th><th class="num">Time</th></tr>
-<tr><td>Animated GIF — gifsicle <code>-O3</code> (lossless, on disk)</td><td class="num">—</td><td class="num">—</td><td class="num good">−66%</td><td class="num">~0.02 s</td></tr>
-<tr><td>Original PNG — 1st pass (lossless recompress)</td><td class="num">41.9 KB</td><td class="num">32.5 KB</td><td class="num">−22%</td><td class="num">&lt;0.2 s</td></tr>
-<tr><td>Original PNG — + 2nd pass zopflipng ×15</td><td class="num">32.5 KB</td><td class="num">28.6 KB</td><td class="num">−12% more</td><td class="num warn">13.7 s</td></tr>
-</table>
-<p><b>gifsicle</b> is nearly free (~20 ms) and saves <b>−66%</b> on GIFs without touching the animation. By
-contrast, <b>zopflipng is slow</b> (≈14 s even for a small PNG) for a marginal disk gain: reserve it for a one-off
-finishing pass off-traffic, or prefer <b>oxipng</b>.</p>
-
-<h2>4.4 Engine: speed &amp; memory (libvips vs ImageMagick)</h2>
-<p>Same libwebp library ⇒ <b>identical WebP size/quality</b>; we therefore compare time and memory.</p>
-<table>
-<tr><th>Scenario</th><th>Engine</th><th class="num">Peak memory</th><th class="num">Time</th></tr>
-<tr><td rowspan="2">Large image 12 Mpx → WebP</td><td>libvips</td><td class="num good">98 MB</td><td class="num">2.2 s</td></tr>
-<tr><td>ImageMagick</td><td class="num">177 MB</td><td class="num">1.9 s</td></tr>
-<tr><td rowspan="2">Thumbnail 320 px (resize + WebP)</td><td>libvips</td><td class="num good">31 MB</td><td class="num good">0.03 s</td></tr>
-<tr><td>ImageMagick</td><td class="num">162 MB</td><td class="num">1.2 s</td></tr>
-</table>
-<p><b>Honest reading.</b> On a large image, libvips uses <b>~1.8× less memory</b> (comparable time). On the
-<b>thumbnail pipeline</b> — exactly the load of a backfill and on-the-fly generation — it is <b>~5× lighter on
-memory and dramatically faster</b> (a thumbnail need not decode the whole image). In short: <b>vips pays off at
-scale</b>, not for a handful of files.</p>
-<div class="box"><b>Lossless WebP: the engine matters.</b> On a flat UI capture, libvips/Imagick produce a true
-lossless WebP of <b>6.9 KB</b> where GD (quality 100, near-lossless) emits <b>19 KB</b> — ~2.7× larger. The engine
-matters as much as the format.</div>
-
-<h2>4.5 AVIF vs WebP (experimental)</h2>
-<table>
-<tr><th>Source</th><th class="num">WebP q85</th><th class="num">AVIF q50</th><th class="num">AVIF vs WebP</th></tr>
-<tr><td>Photo 2000×1500</td><td class="num">201 KB</td><td class="num good">44 KB</td><td class="num good">−78%</td></tr>
-</table>
-<p>AVIF is markedly smaller than WebP, at the cost of slower encoding. <b>Real measured caveat:</b> on the test
-environment, <code>vips heifsave … --compression av1</code> returned <code>Unsupported compression</code> (build
-without AV1) ⇒ the extension would have <b>fallen back to WebP</b>, while PHP-GD <code>imageavif()</code> was
-available. That is exactly why the extension <b>actually probes AV1 capability</b> before producing AVIF.</p>
+<h1>4. Benchmarks — what it costs, what it saves</h1>
+<h2>4.1 Assumptions &amp; method</h2>
+<p>Two families of figures. <b>(A)</b> a <b>cost/benefit model</b> of the real wiki, recomputed from explicit assumptions; <b>(B)</b> <b>real measurements</b> on the test box (PHP 8.4, libvips 8.15.1, ImageMagick 6.9.12, gifsicle 1.94, zopflipng, PHP-GD; <b>single core</b>). Everything is reproducible via <code>docs/benchmarks/model.py</code> and <code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Model assumptions</b> (decimal units; 365 d/yr):
+<ul>
+<li>Wiki originals: <b>52.62 GB</b> of PNG+JPEG (real figure).</li>
+<li>Traffic <b>upper bound (cold cache)</b>: <b>100,000 views/day</b>, <b>10 thumbnails/page</b> → 1.0 M thumbnail-serves/day. Browser + CDN caching strongly reduce real traffic.</li>
+<li>Average served thumbnail <b>55.3 KB</b>; lossless thumbnail optimization −13.7%; WebP of the thumbnail −34% (≈ <b>−43%</b> vs raw).</li>
+<li>Lossless original recompression — 3 scenarios: <b>−7% / −16% / −24%</b>.</li>
+<li>WebP copies of originals ≈ <b>70%</b> of the optimized original, stored <b>in addition</b>.</li>
+</ul></div>
+<p class="small"><b>Why this framing?</b> An earlier estimate conflated <i>per-file compression</i> with <i>served bandwidth</i>. Pages serve <b>thumbnails</b> (already small), not originals, and WebP <b>adds</b> disk since it sits alongside the originals. The figures separate the two.</p>
+<h2>4.2 Served bandwidth — the real benefit</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bandwidth served per day (cold-cache upper bound)"><p class="fcap">Bandwidth served per day (cold-cache upper bound)</p>
+<p>At the level of <b>thumbnails actually served</b>, WebP takes traffic from <b>~55 to ~31 GB/day</b> (<b>−43%</b>), i.e. <b>~8.7 TB/year</b> — as a <b>cold-cache upper bound</b>.</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="The TB/year is an upper bound: it shrinks with caching (the −43% holds)"><p class="fcap">The TB/year is an upper bound: it shrinks with caching (the −43% holds)</p>
+<p>The <b>−43% ratio is robust</b>; the <b>absolute TB/year is an upper bound</b>: images are highly cacheable, so with a CDN/browser the real saving is a fraction of that figure.</p>
+<h2>4.3 Disk: WebP ADDS to it</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disk occupied: before / optimized / with WebP (3 scenarios)"><p class="fcap">Disk occupied: before / optimized / with WebP (3 scenarios)</p>
+<p>WebP files are stored <b>in addition</b> to the originals: disk <b>goes up</b> (52.6 → ~75 GB median). Optimizing originals only reclaims a little (−4 to −12 GB).</p>
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Disk-space change vs today (negative = reclaimed, positive = added)"><p class="fcap">Disk-space change vs today (negative = reclaimed, positive = added)</p>
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="The trade-off: one-time disk cost vs recurring annual bandwidth saving"><p class="fcap">The trade-off: one-time disk cost vs recurring annual bandwidth saving</p>
+<p><b>The honest trade-off:</b> a <b>one-time disk cost (~+22 GB median)</b> against a <b>recurring bandwidth saving</b>. WebP is a <b>bandwidth</b> lever, not a disk one.</p>
+<h2>4.4 Per-file compression (measured) — ≠ bandwidth</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="Per-file WebP compression by category (file size, NOT traffic)"><p class="fcap">Per-file WebP compression by category (file size, NOT traffic)</p>
+<p>These gains are real but apply to the <b>file itself</b>: −73% on a 24 MB PNG is striking but <b>rarely served</b> (its thumbnail is). Hence the separate bandwidth model (§4.2).</p>
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="Lossless WebP: the engine matters (GD ≈ 2.7× larger)"><p class="fcap">Lossless WebP: the engine matters (GD ≈ 2.7× larger)</p>
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (experimental) — smaller, but needs AV1"><p class="fcap">AVIF vs WebP (experimental) — smaller, but needs AV1</p>
+<p>The <b>engine matters</b>: GD has no true lossless. <b>AVIF</b> is markedly smaller than WebP, but the AV1 encoder was missing on the vips side in the test env (automatic WebP fallback).</p>
+<h2>4.5 GIF &amp; 2nd-pass PNG (disk)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="Lossless GIF (gifsicle -O3), animation preserved"><p class="fcap">Lossless GIF (gifsicle -O3), animation preserved</p>
+<img class="chart" src="benchmarks/10-png-passes.png" alt="Original PNG: first & second lossless passes (disk gain)"><p class="fcap">Original PNG: first & second lossless passes (disk gain)</p>
+<p><b>gifsicle</b>: −60 to −66% on GIFs, lossless and animation-safe, for ~20 ms. The <b>2nd-pass PNG (zopflipng)</b> only shaves ~−12% of disk… in ~14 s: off-traffic, or prefer oxipng.</p>
+<h2>4.6 Engine: memory, speed, throughput</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Peak memory: libvips vs ImageMagick (measured)"><p class="fcap">Peak memory: libvips vs ImageMagick (measured)</p>
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Time: libvips vs ImageMagick (measured, log scale)"><p class="fcap">Time: libvips vs ImageMagick (measured, log scale)</p>
+<p>libvips uses ~1.8× less memory on a large image, and ~5× less (and ~40× faster) on the <b>thumbnail pipeline</b> — exactly the load of a backfill and on-the-fly generation.</p>
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Throughput by wiki profile (libvips, single core)"><p class="fcap">Throughput by wiki profile (libvips, single core)</p>
+<p><b>Throughput</b> varies with media richness (~245 to ~65 images/min on one core); the bandwidth ratio stays ~−71/−72%. Parallelize the backfill to multiply throughput.</p>
 
 <h1>5. Best practices to avoid slowdowns</h1>
 <h2>5.1 Where does the risk come from?</h2>
