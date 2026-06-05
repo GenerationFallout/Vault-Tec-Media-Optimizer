@@ -216,34 +216,36 @@ ax.annotate("-12% more\n(but ~13.7 s!)", (2, 31), ha="center", color=C["red"], f
 caption(fig, "Second pass (zopflipng) is slow for a marginal disk-only gain - prefer oxipng, run off-traffic.")
 save(fig, "10-png-passes.png")
 
-# ---- FIG 11 — engine peak memory (libvips vs ImageMagick) ------------------
-fig, ax = plt.subplots(figsize=(7.4, 4.5)); xx = np.arange(2); w = 0.36
-vips_mem = [98, 31]; im_mem = [177, 162]
+# ---- FIG 11 - engine peak memory, REAL extension modes (PNG lossless + JPEG q85)
+fig, ax = plt.subplots(figsize=(8.6, 4.6)); xx = np.arange(4); w = 0.38
+labels = ["PNG 12 Mpx\n-> WebP lossless", "PNG thumb 320\n-> WebP lossless", "JPEG 12 Mpx\n-> WebP q85", "JPEG thumb 320\n-> WebP q85"]
+vips_mem = [409, 60, 111, 32]; im_mem = [446, 162, 178, 113]
 ax.bar(xx-w/2, vips_mem, w, label="libvips", color=C["green"], edgecolor="white")
-ax.bar(xx+w/2, im_mem,  w, label="ImageMagick", color=C["red"], edgecolor="white")
-ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resized FROM the 12 Mpx original)"])
-ax.set_ylabel("Peak memory (MB)"); ax.set_ylim(0, 200)
-ax.set_title("Engine peak memory - libvips vs ImageMagick (MEASURED)", fontweight="bold", fontsize=13)
-for i, (a, b) in enumerate(zip(vips_mem, im_mem)):
-    ax.text(i-w/2, a+3, f"{a} MB", ha="center", fontsize=10, color=C["green"], fontweight="bold")
-    ax.text(i+w/2, b+3, f"{b} MB", ha="center", fontsize=10, color=C["red"])
+ax.bar(xx+w/2, im_mem, w, label="ImageMagick", color=C["red"], edgecolor="white")
+ax.set_xticks(xx); ax.set_xticklabels(labels, fontsize=8.5)
+ax.set_ylabel("Peak memory (MB)"); ax.set_ylim(0, 480)
+ax.set_title("Engine peak memory - real extension modes (MEASURED, 1 core)", fontweight="bold", fontsize=12.5)
+for i,(a,b) in enumerate(zip(vips_mem, im_mem)):
+    ax.text(i-w/2, a+6, f"{a}", ha="center", fontsize=9, color=C["green"], fontweight="bold")
+    ax.text(i+w/2, b+6, f"{b}", ha="center", fontsize=9, color=C["red"])
 ax.legend(framealpha=0.9)
-caption(fig, "Making a 320px thumb still DECODES the full 12 Mpx original into RAM first (ImageMagick Q16) -> peak ~ the big image. libvips shrink-on-load avoids that -> ~5x less.")
+caption(fig, "libvips uses less memory everywhere; the big gap is on THUMBNAILS (~2.7-3.5x). On full images the edge is modest. Numbers in MB.")
 save(fig, "11-engine-memory.png")
 
-# ---- FIG 12 — engine time (log scale, the thumbnail gap is huge) -----------
-fig, ax = plt.subplots(figsize=(7.4, 4.5))
-vips_t = [2.2, 0.03]; im_t = [1.9, 1.2]
+# ---- FIG 12 - engine wall time, REAL extension modes (log scale)
+fig, ax = plt.subplots(figsize=(8.6, 4.6))
+labels = ["PNG 12 Mpx\n-> WebP lossless", "PNG thumb 320\n-> WebP lossless", "JPEG 12 Mpx\n-> WebP q85", "JPEG thumb 320\n-> WebP q85"]
+vips_t = [17.1, 0.82, 1.37, 0.03]; im_t = [11.0, 0.81, 1.30, 0.31]
 ax.bar(xx-w/2, vips_t, w, label="libvips", color=C["green"], edgecolor="white")
-ax.bar(xx+w/2, im_t,  w, label="ImageMagick", color=C["red"], edgecolor="white")
-ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resized FROM the 12 Mpx original)"])
-ax.set_yscale("log"); ax.set_ylabel("Wall time (s, log)"); ax.set_ylim(0.02, 4)
-ax.set_title("Engine wall time - libvips vs ImageMagick (MEASURED)", fontweight="bold", fontsize=13)
-for i, (a, b) in enumerate(zip(vips_t, im_t)):
-    ax.text(i-w/2, a*1.1, f"{a} s", ha="center", fontsize=10, color=C["green"], fontweight="bold")
-    ax.text(i+w/2, b*1.1, f"{b} s", ha="center", fontsize=10, color=C["red"])
-ax.legend(framealpha=0.9)
-caption(fig, "Same cause: the thumbnail time is dominated by decoding the full original. libvips decodes at reduced scale (shrink-on-load) -> ~40x faster; it need not decode the whole image.")
+ax.bar(xx+w/2, im_t, w, label="ImageMagick", color=C["red"], edgecolor="white")
+ax.set_xticks(xx); ax.set_xticklabels(labels, fontsize=8.5)
+ax.set_yscale("log"); ax.set_ylabel("Wall time (s, log)"); ax.set_ylim(0.02, 30)
+ax.set_title("Engine wall time - real extension modes (MEASURED, 1 core)", fontweight="bold", fontsize=12.5)
+for i,(a,b) in enumerate(zip(vips_t, im_t)):
+    ax.text(i-w/2, a*1.12, f"{a}s", ha="center", fontsize=8.5, color=C["green"], fontweight="bold")
+    ax.text(i+w/2, b*1.12, f"{b}s", ha="center", fontsize=8.5, color=C["red"])
+ax.legend(framealpha=0.9, loc="upper right")
+caption(fig, "HONEST: libvips is ~40x faster only on JPEG thumbnails (shrink-on-load). On big LOSSLESS PNG it is NOT faster (even slower here). PNG has no shrink-on-load.")
 save(fig, "12-engine-time.png")
 
 # ---- FIG 13 — throughput by wiki profile (single core) ---------------------
