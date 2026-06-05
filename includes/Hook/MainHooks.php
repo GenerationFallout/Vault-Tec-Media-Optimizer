@@ -3,6 +3,7 @@
 namespace MediaWiki\Extension\VaultTecMediaOptimizer\Hook;
 
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PngRecompressorInterface;
@@ -43,6 +44,8 @@ class MainHooks implements
 	private JobQueueGroup $jobQueueGroup;
 	private PngRecompressorInterface $zopfli;
 	private LoggerInterface $logger;
+	/** Per-request budget for the slow thumbnail second pass (zopfli). Lazy-init. */
+	private ?int $thumbExtraBudget = null;
 
 	public function __construct(
 		HtmlRewriter $htmlRewriter,
@@ -242,35 +245,57 @@ class MainHooks implements
 			] );
 		}
 
-		// Second pass: losslessly recompress the thumbnail PNG itself with
-		// zopflipng (approach B — keep thumbnails optimized even after MW
-		// regenerates them). Only for PNG thumbnails, only if zopflipng is
-		// available. The thumbnail on disk is $tmpThumbPath (the file MW just
-		// wrote). Savings are tracked in the aggregate thumb-stats table.
-		if ( $mime === 'image/png' && $this->zopfli->isAvailable() ) {
-			try {
-				$saved = $this->zopfli->recompress( $tmpThumbPath );
-				if ( $saved === null ) {
-					$this->logger->debug( 'Zopfli thumb recompression failed for {name}: {err}', [
-						'name' => $file->getName(),
-						'err' => $this->zopfli->getLastError() ?? 'unknown',
-					] );
-				} elseif ( $saved > 0 ) {
-					$this->record->addThumbZopfliSaving( $saved );
-					$this->logger->debug( 'Zopfli saved {bytes} bytes on thumb {name}', [
-						'bytes' => $saved,
-						'name' => $file->getName(),
-					] );
-				}
-			} catch ( Throwable $e ) {
-				$this->logger->debug( 'Zopfli thumb recompression error for {name}: {msg}', [
-					'name' => $file->getName(),
-					'msg' => $e->getMessage(),
-				] );
+		// Second pass (zopflipng) on the thumbnail PNG: a disk-only gain that is
+		// FAR too slow to run while a visitor's page renders — zopflipng costs
+		// seconds per file (see the benchmarks). We bound it per request with the
+		// same budget as the on-demand rewriter (OnDemandThumbLimit) and defer it
+		// to a POST_SEND update (run after the response is flushed, so the visitor
+		// never waits), operating on the STORED thumbnail — by then MediaWiki has
+		// copied the temp thumb to its final location, so we recompress that final
+		// file rather than the now-discarded $tmpThumbPath. The cheap WebP above
+		// stays synchronous (it is the asset the rewriter serves).
+		$srcThumbStored = $webpInfo[2] ?? null;
+		if ( $mime === 'image/png' && $this->zopfli->isAvailable()
+			&& is_string( $srcThumbStored ) && $srcThumbStored !== ''
+		) {
+			if ( $this->thumbExtraBudget === null ) {
+				$this->thumbExtraBudget = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
+			}
+			if ( $this->thumbExtraBudget > 0 ) {
+				$this->thumbExtraBudget--;
+				$name = $file->getName();
+				DeferredUpdates::addCallableUpdate( function () use ( $srcThumbStored, $name ) {
+					$this->runDeferredThumbZopfli( $srcThumbStored, $name );
+				} );
+			} else {
+				$this->logger->debug(
+					'Thumb zopfli skipped for {name}: per-request budget spent',
+					[ 'name' => $file->getName() ]
+				);
 			}
 		}
 
 		return true;
+	}
+
+	/**
+	 * Run the zopflipng second pass on a STORED PNG thumbnail AFTER the response
+	 * has been sent (POST_SEND deferred update), so it never adds to a visitor's
+	 * render latency. Bounded per request by the caller's budget.
+	 */
+	private function runDeferredThumbZopfli( string $srcThumbStored, string $name ): void {
+		if ( !is_file( $srcThumbStored ) ) {
+			return;
+		}
+		try {
+			$saved = $this->zopfli->recompress( $srcThumbStored );
+			if ( $saved !== null && $saved > 0 ) {
+				$this->record->addThumbZopfliSaving( $saved );
+			}
+		} catch ( Throwable $e ) {
+			$this->logger->debug( 'Deferred zopfli thumb failed for {name}: {msg}',
+				[ 'name' => $name, 'msg' => $e->getMessage() ] );
+		}
 	}
 
 	/**

@@ -5,6 +5,25 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.2]
+
+### 🇫🇷 Résumé
+Corrige une **latence de rendu** : le hook `onFileTransformed` exécutait, **en synchrone pendant le rendu**
+d'une page et **sans aucun budget**, le second passage **zopflipng** sur chaque miniature PNG nouvellement
+générée (et l'AVIF sur la branche expérimentale). Or zopflipng coûte ~14 s/fichier : une galerie en cache
+froid pouvait ajouter des minutes au rendu — payées par un visiteur. Ces traitements lents sont désormais
+**différés après l'envoi de la réponse** (POST_SEND) et **bornés par requête** (même budget que l'on-demand,
+`OnDemandThumbLimit`). Le WebP, rapide, reste synchrone.
+
+### Fixed
+- **Synchronous thumbnail second-pass latency in `onFileTransformed`** — the zopflipng recompression of newly
+  generated PNG thumbnails (and, on the experimental branch, AVIF generation) ran inline during page render with
+  no budget. With zopflipng at ~14 s/file, a cold gallery of N PNGs could add N×14 s to a visitor's request.
+  These slow passes now run in a **POST_SEND `DeferredUpdate`** (after the response is flushed, so the visitor
+  never waits) and are **bounded per request** by `OnDemandThumbLimit`. They operate on the **stored** thumbnail
+  (the temp pre-storage file is gone by POST_SEND). The fast WebP encode stays synchronous, as it is the asset the
+  rewriter serves. On the experimental branch the deferred AVIF also gains the keep-if-smaller-than-WebP guard.
+
 ## [1.8.1]
 
 ### 🇫🇷 Résumé
