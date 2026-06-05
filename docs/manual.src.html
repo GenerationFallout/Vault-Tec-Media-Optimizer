@@ -270,15 +270,16 @@ WebP qu'Imagick/GD (même bibliothèque libwebp), mais <b>beaucoup plus rapide e
 
 <h2>4.9 AVIF (expérimental) <span class="badge">EXPÉRIMENTAL</span></h2>
 <p>Génère une copie <b>AVIF</b> en plus du WebP et la propose <i>avant</i> le WebP dans <code>&lt;picture&gt;</code>
-(les navigateurs compatibles choisissent l'AVIF, les autres retombent sur WebP puis l'original). L'AVIF compresse
-mieux que le WebP mais encode bien plus lentement, et exige un <b>encodeur AV1</b> (Imagick+libheif/AV1, PHP-GD
+(les navigateurs compatibles choisissent l'AVIF, les autres retombent sur WebP puis l'original). Selon le contenu et l'encodeur, l'AVIF <i>peut</i> être plus compact que le WebP à qualité égale (surtout sur des
+photos lisses) — mais ce n'est pas systématique (sur du bruit ou en haute qualité il peut être plus gros), il encode
+bien plus lentement, et exige un <b>encodeur AV1</b> (Imagick+libheif/AV1, PHP-GD
 <code>imageavif()</code>, ou libvips <code>heifsave</code>+AV1). L'extension <b>sonde réellement</b> la capacité
 AV1 et retombe proprement sur le WebP si elle manque.</p>
 <table>
 <tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
 <tr><td><code>…AvifEnabled</code></td><td><code>false</code></td><td>Active la génération AVIF (en plus du WebP).</td></tr>
 <tr><td><code>…AvifDirectory</code></td><td>images_avif</td><td>Répertoire des copies AVIF (sibling de <code>images/</code>).</td></tr>
-<tr><td><code>…AvifQuality</code></td><td>50</td><td>Qualité AVIF (0-100). ≈ 45-55 visuellement équivalent à WebP 80-85, pour une taille moindre.</td></tr>
+<tr><td><code>…AvifQuality</code></td><td>50</td><td>Qualité AVIF (0-100). ≈ 45-55 ≈ WebP 80-85 visuellement (le gain réel dépend du contenu et de l'encodeur).</td></tr>
 </table>
 
 <h1>5. Architecture technique</h1>
@@ -534,7 +535,7 @@ d'origine sont préservés et les URL encodées. Aucune donnée arbitraire injec
 <table>
 <tr><th>Terme</th><th>Définition</th></tr>
 <tr><td>WebP</td><td>Format d'image moderne, compression supérieure au PNG/JPEG, avec ou sans perte. Supporté par tous les navigateurs récents.</td></tr>
-<tr><td>AVIF</td><td>Format encore plus compact (codec AV1), mais encodage plus lent et support encodeur variable. Expérimental ici (§4.9).</td></tr>
+<tr><td>AVIF</td><td>Format souvent plus compact que le WebP sur les photos à qualité égale (codec AV1), mais encodage plus lent et dépendant de l'encodeur. Expérimental ici (§4.9).</td></tr>
 <tr><td>Sans perte (lossless)</td><td>Compression préservant exactement les données d'origine (cas de l'optimisation PNG et GIF/gifsicle).</td></tr>
 <tr><td>Avec perte (lossy)</td><td>Compression supprimant de l'information pour réduire la taille (JPEG ; WebP de JPEG).</td></tr>
 <tr><td>Miniature (thumbnail)</td><td>Version redimensionnée d'une image, générée par MediaWiki pour l'affichage (c'est ce qui est servi dans les pages).</td></tr>
@@ -636,7 +637,7 @@ le WebP <b>ajoute</b> du disque. On sépare donc la <i>bande passante servie</i>
 <img class="chart" src="benchmarks/06-webp-by-category.png" alt="Compression WebP par catégorie">
 <img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="WebP lossless par moteur">
 <img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP">
-<p class="fcap">Gains par fichier (pas le trafic) ; le moteur compte (GD ≈ 2,7× plus gros en lossless) ; AVIF nettement plus petit (si AV1 dispo).</p>
+<p class="fcap">Gains par fichier (pas le trafic) ; le moteur compte (GD ≈ 2,7× plus gros en lossless) ; AVIF : gain dépendant de la qualité et de l'encodeur (pas toujours plus petit — cf. §16.3).</p>
 
 <h2>16.4 GIF &amp; 2ᵉ passe PNG (disque)</h2>
 <img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF gifsicle">
@@ -823,14 +824,15 @@ binary is unusable.</p>
 </table>
 <h2>4.9 AVIF (experimental) <span class="badge">EXPERIMENTAL</span></h2>
 <p>Generates an <b>AVIF</b> copy in addition to WebP and offers it <i>before</i> WebP inside
-<code>&lt;picture&gt;</code>. AVIF compresses better than WebP but encodes much slower and needs an <b>AV1</b>
+<code>&lt;picture&gt;</code>. Depending on content and encoder, AVIF <i>can</i> be more compact than WebP at equal quality (especially on smooth
+photos) — but not always (on noise or at high quality it can be larger); it encodes much slower and needs an <b>AV1</b>
 encoder (Imagick+libheif/AV1, PHP-GD <code>imageavif()</code>, or libvips <code>heifsave</code>+AV1). The extension
 <b>probes</b> AV1 capability and cleanly falls back to WebP when absent.</p>
 <table>
 <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
 <tr><td><code>…AvifEnabled</code></td><td><code>false</code></td><td>Enables AVIF generation (in addition to WebP).</td></tr>
 <tr><td><code>…AvifDirectory</code></td><td>images_avif</td><td>Directory for AVIF copies.</td></tr>
-<tr><td><code>…AvifQuality</code></td><td>50</td><td>AVIF quality (0-100). ≈ 45-55 ~ WebP 80-85 visually, smaller.</td></tr>
+<tr><td><code>…AvifQuality</code></td><td>50</td><td>AVIF quality (0-100). ≈ 45-55 ~ WebP 80-85 visually (real gain is content/encoder-dependent).</td></tr>
 </table>
 
 <h1>5. Technical architecture</h1>
@@ -1014,7 +1016,7 @@ and URLs encoded. No arbitrary data is injected.</p>
 <table>
 <tr><th>Term</th><th>Definition</th></tr>
 <tr><td>WebP</td><td>Modern image format, better compression than PNG/JPEG, lossy or lossless. Supported by all recent browsers.</td></tr>
-<tr><td>AVIF</td><td>Even smaller format (AV1 codec), but slower encoding and variable encoder support. Experimental here (§4.9).</td></tr>
+<tr><td>AVIF</td><td>Often smaller than WebP on photos at equal quality (AV1 codec), but slower encoding and encoder-dependent. Experimental here (§4.9).</td></tr>
 <tr><td>Lossless</td><td>Compression preserving the exact original data (PNG and GIF/gifsicle here).</td></tr>
 <tr><td>Lossy</td><td>Compression dropping information to shrink size (JPEG; WebP of JPEG).</td></tr>
 <tr><td>Thumbnail</td><td>Resized image generated by MediaWiki for display (this is what pages serve).</td></tr>
@@ -1103,7 +1105,7 @@ WebP copies ≈ 70% of the optimized original, stored <b>in addition</b>.</div>
 <img class="chart" src="benchmarks/06-webp-by-category.png" alt="WebP by category">
 <img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="Lossless WebP by engine">
 <img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP">
-<p class="fcap">Per-file gains (not traffic); the engine matters (GD ≈ 2.7× larger lossless); AVIF markedly smaller when AV1 is available.</p>
+<p class="fcap">Per-file gains (not traffic); the engine matters (GD ≈ 2.7× larger lossless); AVIF gain is quality/encoder-dependent (not always smaller).</p>
 <h2>16.4 GIF &amp; 2nd-pass PNG (disk)</h2>
 <img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF gifsicle">
 <img class="chart" src="benchmarks/10-png-passes.png" alt="PNG passes">

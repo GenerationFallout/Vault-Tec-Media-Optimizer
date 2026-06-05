@@ -159,8 +159,8 @@ sans AV1</b> — l'extension le détecte et sert alors le WebP. Test réel de la
 <img class="chart" src="benchmarks/06-webp-by-category.png" alt="Compression WebP par catégorie (taille du fichier, PAS le trafic)"><p class="fcap">Compression WebP par catégorie (taille du fichier, PAS le trafic)</p>
 <p>Ces gains sont réels mais portent sur le <b>fichier lui-même</b> : un −73 % sur un PNG de 24 Mo est spectaculaire mais <b>rarement servi</b> (on sert sa miniature). D'où la modélisation séparée de la bande passante (§4.2).</p>
 <img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)"><p class="fcap">WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)</p>
-<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (expérimental) — plus petit, mais AV1 requis"><p class="fcap">AVIF vs WebP (expérimental) — plus petit, mais AV1 requis</p>
-<p>Le <b>moteur compte</b> : GD n'a pas de vrai lossless. L'<b>AVIF</b> est nettement plus petit que le WebP, mais l'encodeur AV1 manquait côté vips dans l'env de test (repli WebP automatique).</p>
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (expérimental) — à qualité égale, gain dépendant du contenu/encodeur"><p class="fcap">AVIF vs WebP (expérimental, même encodeur GD, qualité égale) — l'AVIF n'est pas systématiquement plus petit</p>
+<p>Le <b>moteur compte</b> : GD n'a pas de vrai lossless. À qualité égale, l'<b>AVIF</b> <b>n'est pas systématiquement plus petit</b> que le WebP : cela dépend du contenu et de l'encodeur (avec GD, il ne gagne qu'en basse qualité). De plus l'encodeur AV1 manquait côté vips dans l'env de test (repli WebP automatique). D'où le statut expérimental.</p>
 <h2>4.5 GIF &amp; 2ᵉ passe PNG (disque)</h2>
 <img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF sans perte (gifsicle -O3), animation préservée"><p class="fcap">GIF sans perte (gifsicle -O3), animation préservée</p>
 <img class="chart" src="benchmarks/10-png-passes.png" alt="PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)"><p class="fcap">PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)</p>
@@ -339,7 +339,7 @@ extension detects this and serves WebP instead. Real AV1-capability test for vip
 <p>These gains are real but apply to the <b>file itself</b>: −73% on a 24 MB PNG is striking but <b>rarely served</b> (its thumbnail is). Hence the separate bandwidth model (§4.2).</p>
 <img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="Lossless WebP: the engine matters (GD ≈ 2.7× larger)"><p class="fcap">Lossless WebP: the engine matters (GD ≈ 2.7× larger)</p>
 <img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (experimental) — smaller, but needs AV1"><p class="fcap">AVIF vs WebP (experimental) — smaller, but needs AV1</p>
-<p>The <b>engine matters</b>: GD has no true lossless. <b>AVIF</b> is markedly smaller than WebP, but the AV1 encoder was missing on the vips side in the test env (automatic WebP fallback).</p>
+<p>The <b>engine matters</b>: GD has no true lossless. At equal quality, <b>AVIF is not systematically smaller</b> than WebP: it depends on content and encoder (with GD it only wins at low quality). The AV1 encoder was also missing on the vips side in the test env (automatic WebP fallback). Hence the experimental status.</p>
 <h2>4.5 GIF &amp; 2nd-pass PNG (disk)</h2>
 <img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="Lossless GIF (gifsicle -O3), animation preserved"><p class="fcap">Lossless GIF (gifsicle -O3), animation preserved</p>
 <img class="chart" src="benchmarks/10-png-passes.png" alt="Original PNG: first & second lossless passes (disk gain)"><p class="fcap">Original PNG: first & second lossless passes (disk gain)</p>

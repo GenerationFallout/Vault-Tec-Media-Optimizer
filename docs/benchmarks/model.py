@@ -162,14 +162,26 @@ for b, v in zip(bars, save_pct): ax.text(b.get_x()+b.get_width()/2, v+1, f"-{v:.
 caption(fig, "Big % on a 24 MB original is real but rarely served; pages embed thumbnails. Bandwidth is modelled separately (Figs 1-5).")
 save(fig, "06-webp-by-category.png")
 
-# ---- FIG 07 — AVIF vs WebP (photo 2000x1500) -------------------------------
-fig, ax = plt.subplots(figsize=(6.6, 4.5))
-v = [201.0, 44.0]; bars = ax.bar(["WebP q85", "AVIF q50"], v, color=[C["gold"], C["green"]], width=0.5, edgecolor="white")
-ax.set_ylabel("File size (KB)"); ax.set_ylim(0, 230)
-ax.set_title("AVIF vs WebP (experimental) - same photo 2000x1500", fontweight="bold", fontsize=13)
-for b, val in zip(bars, v): ax.text(b.get_x()+b.get_width()/2, val+3, f"{val:.0f} KB", ha="center", va="bottom", fontsize=11, fontweight="bold")
-ax.text(1, 70, "-78% vs WebP", ha="center", color=C["green"], fontweight="bold", fontsize=12)
-caption(fig, "AVIF is much smaller but slower; on the test box vips lacked AV1 -> fell back to WebP (the extension probes AV1 first).")
+# ---- FIG 07 — AVIF vs WebP, SAME encoder & SAME quality (honest) -----------
+# Measured with PHP-GD (one encoder) at matching quality settings on the same
+# 2000x1500 photo. NOT vips-WebP-q85 vs GD-AVIF-q50 (that earlier comparison was
+# unfair: different encoders, different quality, a noise-favourable image).
+fig, ax = plt.subplots(figsize=(7.4, 4.5))
+qs = [40, 60, 80]; webp = [51.3, 74.0, 140.7]; avif = [25.0, 83.8, 201.3]
+xq = np.arange(len(qs)); w = 0.36
+ax.bar(xq-w/2, webp, w, label="WebP (GD)", color=C["gold"], edgecolor="white")
+ax.bar(xq+w/2, avif, w, label="AVIF (GD)", color=C["green"], edgecolor="white")
+ax.set_xticks(xq); ax.set_xticklabels([f"q{q}" for q in qs])
+ax.set_ylabel("File size (KB)"); ax.set_xlabel("Same quality setting, same encoder (PHP-GD)")
+ax.set_ylim(0, 230)
+ax.set_title("AVIF vs WebP - honest, quality-matched (experimental)", fontweight="bold", fontsize=12.5)
+for xi,(wv,av) in zip(xq, zip(webp,avif)):
+    ax.text(xi-w/2, wv+3, f"{wv:.0f}", ha="center", fontsize=9.5, color="#9a6a00")
+    ax.text(xi+w/2, av+3, f"{av:.0f}", ha="center", fontsize=9.5, color=C["green"])
+    ax.text(xi, max(wv,av)+14, f"{(av/wv-1)*100:+.0f}%", ha="center", fontsize=9.5, fontweight="bold",
+            color=(C["green"] if av<wv else C["red"]))
+ax.legend(framealpha=0.9)
+caption(fig, "AVIF only wins at LOW quality here; at higher quality GD's AVIF is larger. Encoder-dependent (GD's libavif isn't tuned) and this noisy synthetic image penalises it. AVIF stays experimental.")
 save(fig, "07-avif-vs-webp.png")
 
 # ---- FIG 08 — WebP lossless quality by engine (flat UI capture) ------------
@@ -209,14 +221,14 @@ fig, ax = plt.subplots(figsize=(7.4, 4.5)); xx = np.arange(2); w = 0.36
 vips_mem = [98, 31]; im_mem = [177, 162]
 ax.bar(xx-w/2, vips_mem, w, label="libvips", color=C["green"], edgecolor="white")
 ax.bar(xx+w/2, im_mem,  w, label="ImageMagick", color=C["red"], edgecolor="white")
-ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resize + WebP)"])
+ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resized FROM the 12 Mpx original)"])
 ax.set_ylabel("Peak memory (MB)"); ax.set_ylim(0, 200)
 ax.set_title("Engine peak memory - libvips vs ImageMagick (MEASURED)", fontweight="bold", fontsize=13)
 for i, (a, b) in enumerate(zip(vips_mem, im_mem)):
     ax.text(i-w/2, a+3, f"{a} MB", ha="center", fontsize=10, color=C["green"], fontweight="bold")
     ax.text(i+w/2, b+3, f"{b} MB", ha="center", fontsize=10, color=C["red"])
 ax.legend(framealpha=0.9)
-caption(fig, "~1.8x less on a large image, ~5x less on the thumbnail pipeline (the backfill / on-the-fly hot path).")
+caption(fig, "Making a 320px thumb still DECODES the full 12 Mpx original into RAM first (ImageMagick Q16) -> peak ~ the big image. libvips shrink-on-load avoids that -> ~5x less.")
 save(fig, "11-engine-memory.png")
 
 # ---- FIG 12 — engine time (log scale, the thumbnail gap is huge) -----------
@@ -224,14 +236,14 @@ fig, ax = plt.subplots(figsize=(7.4, 4.5))
 vips_t = [2.2, 0.03]; im_t = [1.9, 1.2]
 ax.bar(xx-w/2, vips_t, w, label="libvips", color=C["green"], edgecolor="white")
 ax.bar(xx+w/2, im_t,  w, label="ImageMagick", color=C["red"], edgecolor="white")
-ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resize + WebP)"])
+ax.set_xticks(xx); ax.set_xticklabels(["Large image\n12 Mpx -> WebP", "Thumbnail 320 px\n(resized FROM the 12 Mpx original)"])
 ax.set_yscale("log"); ax.set_ylabel("Wall time (s, log)"); ax.set_ylim(0.02, 4)
 ax.set_title("Engine wall time - libvips vs ImageMagick (MEASURED)", fontweight="bold", fontsize=13)
 for i, (a, b) in enumerate(zip(vips_t, im_t)):
     ax.text(i-w/2, a*1.1, f"{a} s", ha="center", fontsize=10, color=C["green"], fontweight="bold")
     ax.text(i+w/2, b*1.1, f"{b} s", ha="center", fontsize=10, color=C["red"])
 ax.legend(framealpha=0.9)
-caption(fig, "Comparable on a single large image; libvips is ~40x faster on thumbnails (it need not decode the whole image).")
+caption(fig, "Same cause: the thumbnail time is dominated by decoding the full original. libvips decodes at reduced scale (shrink-on-load) -> ~40x faster; it need not decode the whole image.")
 save(fig, "12-engine-time.png")
 
 # ---- FIG 13 — throughput by wiki profile (single core) ---------------------
