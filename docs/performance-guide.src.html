@@ -135,28 +135,38 @@ sans AV1</b> — l'extension le détecte et sert alors le WebP. Test réel de la
 <p>Mesures réalisées sur la machine de test : <b>PHP 8.4</b>, <b>libvips 8.15.1</b>, <b>ImageMagick 6.9.12</b>,
 <b>gifsicle 1.94</b>, <b>zopflipng</b>, <b>un seul cœur</b>. Corpus synthétique <b>varié</b> (17 fichiers réels,
 ~75 Mo : photos, captures d'UI à aplats, grandes photos PNG, GIF animés). Temps = horloge murale ; mémoire = pic
-RSS via <code>/usr/bin/time</code>. <b>Pondération :</b> pour rester réaliste, les catégories sont pondérées par
-un <b>mix de wiki modélisé</b> (par nombre de fichiers : <b>JPEG 50 % · PNG UI 30 % · grande photo PNG 8 % ·
-GIF 12 %</b>) ; la bande passante est pondérée <b>par octets</b> (ce qui détermine réellement le trafic), le
-débit <b>par fichier</b>. <span class="small">Les chiffres absolus dépendent de la machine et des images ; ce
-sont les ordres de grandeur et ratios qui comptent. Reproduisez avec <code>tests/integration/pipeline.php</code>
-et vos propres images.</span></p>
+RSS via <code>/usr/bin/time</code>. <b>Pondération :</b> pour rester honnête, on n'affiche pas un seul chiffre mais
+une <b>fourchette basse / moyenne / haute</b> obtenue en agrégeant les <b>mêmes mesures par catégorie</b> selon
+<b>trois profils de wiki</b> (poids par nombre de fichiers, détaillés en §4.2) ; la bande passante est pondérée
+<b>par octets</b> (ce qui détermine réellement le trafic), le débit <b>par fichier</b>. <span class="small">Les
+chiffres absolus dépendent de la machine et des images ; ce sont les ordres de grandeur et ratios qui comptent.
+Reproduisez avec <code>tests/integration/pipeline.php</code> et vos propres images.</span></p>
 
-<h2>4.2 Résultat pondéré (le chiffre « réel » à retenir)</h2>
+<h2>4.2 Résultat pondéré — fourchette basse / moyenne / haute</h2>
+<p>Les gains <b>par catégorie</b> ci-dessous sont des <b>faits mesurés</b>. Ce qui varie d'un wiki à l'autre, c'est
+leur <b>composition</b> ; pour rester honnête on en donne donc une <b>fourchette</b> via trois profils plausibles
+(mix par nombre de fichiers).</p>
 <table>
-<tr><th>Catégorie (poids dans le mix)</th><th class="num">Orig. moy.</th><th class="num">→ WebP</th><th class="num">Gain</th><th class="num">Temps/fichier (vips)</th></tr>
-<tr><td>Photo JPEG → WebP q85 <span class="small">(50 %)</span></td><td class="num">595 Ko</td><td class="num">199 Ko</td><td class="num good">−67 %</td><td class="num">0,35 s</td></tr>
-<tr><td>PNG UI/diagramme → WebP lossless <span class="small">(30 %)</span></td><td class="num">26 Ko</td><td class="num">4 Ko</td><td class="num good">−84 %</td><td class="num">0,11 s</td></tr>
-<tr><td>Grande photo PNG → WebP lossless <span class="small">(8 %)</span></td><td class="num">24,0 Mo</td><td class="num">6,6 Mo</td><td class="num good">−73 %</td><td class="num">2,33 s</td></tr>
-<tr><td>GIF animé → WebP animé <span class="small">(12 %)</span></td><td class="num">18 Ko</td><td class="num">8 Ko</td><td class="num good">−58 %</td><td class="num">0,09 s</td></tr>
-<tr><th colspan="5" style="background:#e8f0e8;">Agrégat pondéré du corpus</th></tr>
-<tr><td><b>Bande passante servie</b> (pondérée octets)</td><td class="num" colspan="2"></td><td class="num good"><b>−72 %</b></td><td class="num"></td></tr>
-<tr><td><b>Débit de traitement</b> (vips, pondéré fichiers, mono-cœur)</td><td class="num" colspan="3"></td><td class="num"><b>≈ 150 images/min</b></td></tr>
+<tr><th>Catégorie</th><th class="num">Orig. moy.</th><th class="num">→ WebP</th><th class="num">Gain mesuré</th><th class="num">Temps/fichier (vips)</th></tr>
+<tr><td>Photo JPEG → WebP q85</td><td class="num">595 Ko</td><td class="num">199 Ko</td><td class="num good">−67 %</td><td class="num">0,35 s</td></tr>
+<tr><td>PNG UI/diagramme → WebP lossless</td><td class="num">26 Ko</td><td class="num">4 Ko</td><td class="num good">−84 %</td><td class="num">0,11 s</td></tr>
+<tr><td>Grande photo PNG → WebP lossless</td><td class="num">24,0 Mo</td><td class="num">6,6 Mo</td><td class="num good">−73 %</td><td class="num">2,33 s</td></tr>
+<tr><td>GIF animé → WebP animé</td><td class="num">18 Ko</td><td class="num">8 Ko</td><td class="num good">−58 %</td><td class="num">0,09 s</td></tr>
 </table>
-<p><b>Lecture.</b> Sur un mix de wiki réaliste, le WebP servi réduit la bande passante d'environ <b>−72 %</b>.
-Comme quelques grosses images concentrent l'essentiel des octets, ce chiffre pondéré-octets est tiré par les
-grandes photos PNG — c'est volontaire : c'est ce que paie réellement le réseau. Côté traitement, un cœur encode
-~<b>150 images/min</b> avec libvips (parallélisez le backfill pour multiplier d'autant).</p>
+<table>
+<tr><th>Profil de wiki <span class="small">(JPEG / PNG&nbsp;UI / grande&nbsp;PNG / GIF, par nb de fichiers)</span></th>
+<th class="num">Bande passante servie<br><span class="small">(pondérée octets)</span></th>
+<th class="num">Débit vips<br><span class="small">(mono-cœur)</span></th></tr>
+<tr><td><b>Moyenne basse</b> — wiki léger en médias <span class="small">(40 / 50 / 2 / 8 %)</span></td><td class="num good">−71 %</td><td class="num">~245 img/min</td></tr>
+<tr><td><b>Moyenne moyenne</b> — mix équilibré <span class="small">(50 / 30 / 8 / 12 %)</span></td><td class="num good"><b>−72 %</b></td><td class="num"><b>~150 img/min</b></td></tr>
+<tr><td><b>Moyenne haute</b> — wiki riche en médias <span class="small">(50 / 12 / 30 / 8 %)</span></td><td class="num good">−72 %</td><td class="num">~65 img/min</td></tr>
+</table>
+<p><b>Lecture honnête.</b> La <b>bande passante gagnée est remarquablement stable (~−71 à −72 %)</b> quel que soit
+le profil : quelques grosses images concentrent l'essentiel des octets, donc le ratio bouge peu même quand elles
+sont rares en nombre. <b>Ce qui varie vraiment, c'est le débit de traitement</b> — d'environ <b>~245 img/min</b>
+(wiki léger) à <b>~65 img/min</b> (wiki riche en grosses photos) sur <b>un seul cœur</b> ; parallélisez le backfill
+pour multiplier d'autant. <span class="small">Profils par nombre de fichiers ; débit pondéré fichiers, bande
+passante pondérée octets.</span></p>
 
 <h2>4.3 GIF sans perte (gifsicle) &amp; 2ᵉ passe PNG</h2>
 <table>
@@ -342,27 +352,36 @@ extension detects this and serves WebP instead. Real AV1-capability test for vip
 <p>Measured on the test machine: <b>PHP 8.4</b>, <b>libvips 8.15.1</b>, <b>ImageMagick 6.9.12</b>,
 <b>gifsicle 1.94</b>, <b>zopflipng</b>, <b>single core</b>. A <b>varied</b> synthetic corpus (17 real files,
 ~75 MB: photos, flat UI captures, large PNG photos, animated GIFs). Time = wall clock; memory = peak RSS via
-<code>/usr/bin/time</code>. <b>Weighting:</b> to stay realistic, categories are weighted by a <b>modeled wiki
-mix</b> (by file count: <b>JPEG 50% · PNG UI 30% · large PNG photo 8% · GIF 12%</b>); bandwidth is weighted
-<b>by bytes</b> (what actually drives traffic), throughput <b>by file</b>. <span class="small">Absolute numbers
-depend on machine and images; the orders of magnitude and ratios are what matter. Reproduce with
-<code>tests/integration/pipeline.php</code> and your own images.</span></p>
+<code>/usr/bin/time</code>. <b>Weighting:</b> to stay honest, we show not a single number but a <b>low / medium /
+high range</b>, obtained by aggregating the <b>same per-category measurements</b> under <b>three wiki profiles</b>
+(weights by file count, detailed in §4.2); bandwidth is weighted <b>by bytes</b> (what actually drives traffic),
+throughput <b>by file</b>. <span class="small">Absolute numbers depend on machine and images; the orders of
+magnitude and ratios are what matter. Reproduce with <code>tests/integration/pipeline.php</code> and your own
+images.</span></p>
 
-<h2>4.2 Weighted result (the realistic figure)</h2>
+<h2>4.2 Weighted result — low / medium / high range</h2>
+<p>The <b>per-category</b> savings below are <b>measured facts</b>. What varies from one wiki to another is their
+<b>composition</b>; to stay honest we therefore give a <b>range</b> via three plausible profiles (mix by file count).</p>
 <table>
-<tr><th>Category (weight in the mix)</th><th class="num">Avg orig.</th><th class="num">→ WebP</th><th class="num">Saving</th><th class="num">Time/file (vips)</th></tr>
-<tr><td>JPEG photo → WebP q85 <span class="small">(50%)</span></td><td class="num">595 KB</td><td class="num">199 KB</td><td class="num good">−67%</td><td class="num">0.35 s</td></tr>
-<tr><td>UI/diagram PNG → lossless WebP <span class="small">(30%)</span></td><td class="num">26 KB</td><td class="num">4 KB</td><td class="num good">−84%</td><td class="num">0.11 s</td></tr>
-<tr><td>Large PNG photo → lossless WebP <span class="small">(8%)</span></td><td class="num">24.0 MB</td><td class="num">6.6 MB</td><td class="num good">−73%</td><td class="num">2.33 s</td></tr>
-<tr><td>Animated GIF → animated WebP <span class="small">(12%)</span></td><td class="num">18 KB</td><td class="num">8 KB</td><td class="num good">−58%</td><td class="num">0.09 s</td></tr>
-<tr><th colspan="5" style="background:#e8f0e8;">Weighted corpus aggregate</th></tr>
-<tr><td><b>Served bandwidth</b> (byte-weighted)</td><td class="num" colspan="2"></td><td class="num good"><b>−72%</b></td><td class="num"></td></tr>
-<tr><td><b>Processing throughput</b> (vips, file-weighted, single core)</td><td class="num" colspan="3"></td><td class="num"><b>≈ 150 images/min</b></td></tr>
+<tr><th>Category</th><th class="num">Avg orig.</th><th class="num">→ WebP</th><th class="num">Measured saving</th><th class="num">Time/file (vips)</th></tr>
+<tr><td>JPEG photo → WebP q85</td><td class="num">595 KB</td><td class="num">199 KB</td><td class="num good">−67%</td><td class="num">0.35 s</td></tr>
+<tr><td>UI/diagram PNG → lossless WebP</td><td class="num">26 KB</td><td class="num">4 KB</td><td class="num good">−84%</td><td class="num">0.11 s</td></tr>
+<tr><td>Large PNG photo → lossless WebP</td><td class="num">24.0 MB</td><td class="num">6.6 MB</td><td class="num good">−73%</td><td class="num">2.33 s</td></tr>
+<tr><td>Animated GIF → animated WebP</td><td class="num">18 KB</td><td class="num">8 KB</td><td class="num good">−58%</td><td class="num">0.09 s</td></tr>
 </table>
-<p><b>Reading.</b> On a realistic wiki mix, served WebP cuts bandwidth by about <b>−72%</b>. Because a few large
-images hold most of the bytes, this byte-weighted figure is driven by the large PNG photos — deliberately so:
-that is what the network actually pays. On the processing side, one core encodes ~<b>150 images/min</b> with
-libvips (parallelize the backfill to multiply accordingly).</p>
+<table>
+<tr><th>Wiki profile <span class="small">(JPEG / PNG&nbsp;UI / large&nbsp;PNG / GIF, by file count)</span></th>
+<th class="num">Served bandwidth<br><span class="small">(byte-weighted)</span></th>
+<th class="num">vips throughput<br><span class="small">(single core)</span></th></tr>
+<tr><td><b>Low average</b> — media-light wiki <span class="small">(40 / 50 / 2 / 8%)</span></td><td class="num good">−71%</td><td class="num">~245 img/min</td></tr>
+<tr><td><b>Medium average</b> — balanced mix <span class="small">(50 / 30 / 8 / 12%)</span></td><td class="num good"><b>−72%</b></td><td class="num"><b>~150 img/min</b></td></tr>
+<tr><td><b>High average</b> — media-rich wiki <span class="small">(50 / 12 / 30 / 8%)</span></td><td class="num good">−72%</td><td class="num">~65 img/min</td></tr>
+</table>
+<p><b>Honest reading.</b> The <b>bandwidth saving is remarkably stable (~−71 to −72%)</b> across every profile: a
+few large images hold most of the bytes, so the ratio barely moves even when they are rare in count. <b>What truly
+varies is processing throughput</b> — from about <b>~245 img/min</b> (media-light) to <b>~65 img/min</b>
+(media-rich, many large photos) on <b>a single core</b>; parallelize the backfill to multiply accordingly.
+<span class="small">Profiles by file count; throughput file-weighted, bandwidth byte-weighted.</span></p>
 
 <h2>4.3 Lossless GIF (gifsicle) &amp; 2nd-pass PNG</h2>
 <table>
