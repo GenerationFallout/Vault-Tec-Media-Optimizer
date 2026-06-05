@@ -3,6 +3,7 @@
 namespace MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer;
 
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\GifAnimationDetector;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -11,7 +12,9 @@ use Throwable;
  *
  * Limitations vs Imagick:
  * - No lossless PNG recompression as efficient (just re-saves at max compression)
- * - No animated GIF -> animated WebP (will skip animated GIFs entirely)
+ * - No animated GIF -> animated WebP. GD can only decode a GIF's first frame, so
+ *   animated GIFs are refused at the WebP step (the original animation is kept);
+ *   still GIFs are converted normally.
  * - Cannot preserve ICC profiles
  */
 class GdOptimizer implements OptimizerInterface {
@@ -184,9 +187,27 @@ class GdOptimizer implements OptimizerInterface {
 					$img = @imagecreatefromjpeg( $sourcePath );
 					break;
 				case 'image/gif':
-					// GD imagecreatefromgif gets only first frame.
-					// Animated GIFs are not handled by GD; skip.
+					// GD's imagecreatefromgif() only ever decodes the FIRST
+					// frame. For an animated GIF that would produce a still
+					// WebP which, once served in place of the GIF (serving is
+					// decided purely by the WebP's presence on disk), silently
+					// destroys the animation. Refuse so the caller keeps the
+					// original animated GIF. Imagick/libvips encode animated
+					// WebP and are unaffected.
+					if ( GifAnimationDetector::isAnimated( $sourcePath ) ) {
+						$this->lastError = 'Animated GIF: GD cannot encode '
+							. 'animated WebP (skipped to preserve the animation)';
+						return false;
+					}
 					$img = @imagecreatefromgif( $sourcePath );
+					if ( $img ) {
+						// GIFs are palette images; imagewebp() rejects palette
+						// input outright, so promote to truecolor and carry the
+						// GIF's transparent colour over as an alpha channel.
+						imagepalettetotruecolor( $img );
+						imagealphablending( $img, true );
+						imagesavealpha( $img, true );
+					}
 					break;
 				default:
 					return false;

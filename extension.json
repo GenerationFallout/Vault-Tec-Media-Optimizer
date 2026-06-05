@@ -1,7 +1,7 @@
 {
 	"name": "VaultTecMediaOptimizer",
 	"namemsg": "vaulttecmediaoptimizer-extensionname",
-	"version": "1.7.0",
+	"version": "1.8.1",
 	"author": [
 		"[https://fallout-wiki.com Archives de Vault-Tec]"
 	],
@@ -204,6 +204,18 @@
 		"VaultTecMediaOptimizerUseJobQueue": {
 			"value": true,
 			"description": "When true (default), each upload enqueues a background optimization job. Set false on large wikis to STOP using the job queue: uploads are then NOT auto-optimized — run maintenance/optimizeImages.php from the command line on your own schedule instead. Thumbnails still get their WebP on-demand at render time, so visitors keep getting WebP; only the original's optimization waits for the CLI run. Avoids flooding the queue."
+		},
+		"VaultTecMediaOptimizerGifsicleEnabled": {
+			"value": false,
+			"description": "Enable first-pass lossless GIF optimization of originals with the external gifsicle binary (-O3). Strictly lossless and animation-safe: it never resizes, never alters frame pixels/timing/loop — only the on-disk representation gets smaller (keep-if-smaller guard). Runs on upload and during the CLI backfill (no separate second-pass job). Requires gifsicle installed and shell execution allowed. Off by default. Independent of WebP generation, which always runs."
+		},
+		"VaultTecMediaOptimizerGifsicleBinary": {
+			"value": "gifsicle",
+			"description": "Path to the gifsicle binary, or just the command name to look up on PATH. If open_basedir restricts /usr/bin, set an absolute path inside the wiki tree."
+		},
+		"VaultTecMediaOptimizerGifsicleLevel": {
+			"value": 3,
+			"description": "gifsicle structural optimization level: 1, 2 or 3. 3 (default) tries the most lossless strategies for the smallest output. Never enables lossy/resize/palette reduction."
 		}
 	},
 	"manifest_version": 2
