@@ -648,7 +648,7 @@ le WebP <b>ajoute</b> du disque. On sépare donc la <i>bande passante servie</i>
 <img class="chart" src="benchmarks/11-engine-memory.png" alt="Mémoire moteur">
 <img class="chart" src="benchmarks/12-engine-time.png" alt="Temps moteur">
 <img class="chart" src="benchmarks/13-throughput-profile.png" alt="Débit par profil">
-<p class="fcap">libvips ~1,8× moins de mémoire (grande image) et ~5× moins / ~40× plus vite (miniatures) ; débit ~245→~65 img/min selon la richesse média (la bande passante reste ~−71/−72 %).</p>
+<p class="fcap">Mesuré aux réglages réels (PNG→WebP lossless, JPEG→q85) : libvips = moins de mémoire partout (surtout miniatures ~2,7–3,5×) ; ~40× plus vite uniquement sur les miniatures JPEG (shrink-on-load), PAS plus rapide sur gros PNG lossless (même un peu plus lent). Débit ~245→~65 img/min selon la richesse média ; bande passante ~−71/−72 %.</p>
 
 <!-- ===================== ENGLISH ===================== -->
 <p class="flag langsep" style="font-size:9pt; color:#2e5a86; font-weight:bold; letter-spacing:1px;">EN — ENGLISH VERSION</p>
@@ -1114,7 +1114,7 @@ WebP copies ≈ 70% of the optimized original, stored <b>in addition</b>.</div>
 <img class="chart" src="benchmarks/11-engine-memory.png" alt="Engine memory">
 <img class="chart" src="benchmarks/12-engine-time.png" alt="Engine time">
 <img class="chart" src="benchmarks/13-throughput-profile.png" alt="Throughput by profile">
-<p class="fcap">libvips ~1.8× less memory (large image), ~5× less / ~40× faster (thumbnails); throughput ~245→~65 img/min by media richness (bandwidth stays ~−71/−72%).</p>
+<p class="fcap">Measured at the extension's real modes (PNG→lossless WebP, JPEG→q85): libvips uses less memory everywhere (esp. thumbnails ~2.7–3.5×); ~40× faster ONLY on JPEG thumbnails (shrink-on-load), NOT faster on big lossless PNG (even a bit slower). Throughput ~245→~65 img/min by media richness; bandwidth ~−71/−72%.</p>
 
 </body></html>
 

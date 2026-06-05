@@ -168,7 +168,7 @@ sans AV1</b> — l'extension le détecte et sert alors le WebP. Test réel de la
 <h2>4.6 Moteur : mémoire, vitesse, débit</h2>
 <img class="chart" src="benchmarks/11-engine-memory.png" alt="Pic mémoire : libvips vs ImageMagick (mesuré)"><p class="fcap">Pic mémoire : libvips vs ImageMagick (mesuré)</p>
 <img class="chart" src="benchmarks/12-engine-time.png" alt="Temps : libvips vs ImageMagick (mesuré, échelle log)"><p class="fcap">Temps : libvips vs ImageMagick (mesuré, échelle log)</p>
-<p>libvips utilise ~1,8× moins de mémoire sur une grande image, et ~5× moins (et ~40× plus vite) sur le <b>pipeline de miniatures</b> — exactement la charge d'un backfill et de la génération à la volée.</p>
+<p><b>Lecture honnête (mesures aux réglages réels de l'extension : PNG → WebP lossless, JPEG → q85).</b> libvips utilise <b>moins de mémoire partout</b>, surtout sur les <b>miniatures</b> (~2,7–3,5×). Côté <b>vitesse</b>, l'avantage n'est <b>pas</b> universel : il est net sur les <b>miniatures JPEG</b> (~40×, grâce au <i>shrink-on-load</i>), mais sur un <b>gros PNG lossless</b> libvips n'est <b>pas plus rapide</b> (il est même un peu plus lent : 17 s vs 11 s), car le PNG n'a pas de décodage à échelle réduite. Bilan : vips fait surtout gagner de la <b>mémoire</b> (et du temps sur les miniatures JPEG).</p>
 <img class="chart" src="benchmarks/13-throughput-profile.png" alt="Débit par profil de wiki (libvips, un cœur)"><p class="fcap">Débit par profil de wiki (libvips, un cœur)</p>
 <p>Le <b>débit</b> varie selon la richesse média (~245 à ~65 images/min sur un cœur) ; le ratio de bande passante reste ~−71/−72 %. Parallélisez le backfill pour multiplier le débit.</p>
 
@@ -347,7 +347,7 @@ extension detects this and serves WebP instead. Real AV1-capability test for vip
 <h2>4.6 Engine: memory, speed, throughput</h2>
 <img class="chart" src="benchmarks/11-engine-memory.png" alt="Peak memory: libvips vs ImageMagick (measured)"><p class="fcap">Peak memory: libvips vs ImageMagick (measured)</p>
 <img class="chart" src="benchmarks/12-engine-time.png" alt="Time: libvips vs ImageMagick (measured, log scale)"><p class="fcap">Time: libvips vs ImageMagick (measured, log scale)</p>
-<p>libvips uses ~1.8× less memory on a large image, and ~5× less (and ~40× faster) on the <b>thumbnail pipeline</b> — exactly the load of a backfill and on-the-fly generation.</p>
+<p><b>Honest reading (measured at the extension's real modes: PNG → lossless WebP, JPEG → q85).</b> libvips uses <b>less memory everywhere</b>, especially on <b>thumbnails</b> (~2.7–3.5×). On <b>speed</b> the advantage is <b>not</b> universal: it is large on <b>JPEG thumbnails</b> (~40×, thanks to <i>shrink-on-load</i>), but on a <b>big lossless PNG</b> libvips is <b>not faster</b> (even a bit slower: 17 s vs 11 s), because PNG has no reduced-scale decode. Bottom line: vips mainly saves <b>memory</b> (and time on JPEG thumbnails).</p>
 <img class="chart" src="benchmarks/13-throughput-profile.png" alt="Throughput by wiki profile (libvips, single core)"><p class="fcap">Throughput by wiki profile (libvips, single core)</p>
 <p><b>Throughput</b> varies with media richness (~245 to ~65 images/min on one core); the bandwidth ratio stays ~−71/−72%. Parallelize the backfill to multiply throughput.</p>
 
