@@ -106,6 +106,26 @@ même original ne peuvent plus se corrompre mutuellement (noms de temp uniques p
 les recompresseurs zopfli/oxipng). Par ailleurs, un dérivé **vide/tronqué** (reliquat de crash) est traité
 comme manquant : il n'est pas servi et est régénéré.
 
+## E. AVIF (EXPÉRIMENTAL)
+
+> Fonctionnalité **expérimentale**, **désactivée par défaut**. Le WebP reste le format principal.
+
+En complément du WebP, l'extension peut générer une copie **AVIF** et la servir **avant** le WebP dans la
+balise `<picture>`. Les navigateurs compatibles AVIF la choisissent ; les autres retombent sur le WebP, puis
+sur l'`<img>` d'origine — sans aucune détection côté serveur (négociation native par `<picture>`).
+
+| Paramètre | Défaut | Description |
+|---|---|---|
+| `$wgVaultTecMediaOptimizerAvifEnabled` | `false` | Active la génération + le service AVIF (avant le WebP). |
+| `$wgVaultTecMediaOptimizerAvifDirectory` | `images_avif` | Répertoire (frère de `images/`) des copies AVIF. |
+| `$wgVaultTecMediaOptimizerAvifQuality` | `50` | Qualité AVIF (0-100). ~45-55 ≈ WebP 80-85 ; l'alpha est préservé. |
+
+**Encodeurs** : Imagick avec AVIF (libheif + AV1), PHP-GD avec `imageavif()`, ou le moteur **libvips**
+(`heifsave` + AV1). L'extension **sonde réellement** la capacité AV1 (un build peut exposer `heifsave` pour le
+HEIC sans encodeur AV1) : sinon l'AVIF est **sauté proprement** (le WebP reste servi, sans budget gaspillé).
+`Spécial:VaultTec_État` affiche la prise en charge AVIF. L'AVIF n'est pas suivi dans les statistiques
+(expérimental). Encodage **lent** → off par défaut.
+
 ---
 
 # 🇬🇧 Documentation additions
@@ -190,3 +210,23 @@ All derived files (WebP/AVIF) are written to a **unique-name** temporary file th
 delete an existing good file; and two simultaneous runs on the same original can no longer corrupt each other
 (unique temp names for the optimizers **and** the zopfli/oxipng recompressors). An empty/truncated derived
 file (crash leftover) is treated as missing: not served, and regenerated.
+
+## E. AVIF (EXPERIMENTAL)
+
+> **Experimental**, **off by default**. WebP remains the primary format.
+
+In addition to WebP, the extension can generate an **AVIF** copy and serve it **before** WebP in the
+`<picture>` tag. AVIF-capable browsers pick it; others fall back to WebP, then to the original `<img>` — with
+no server-side detection (native `<picture>` negotiation).
+
+| Setting | Default | Description |
+|---|---|---|
+| `$wgVaultTecMediaOptimizerAvifEnabled` | `false` | Enables AVIF generation + delivery (before WebP). |
+| `$wgVaultTecMediaOptimizerAvifDirectory` | `images_avif` | Sibling directory of `images/` for AVIF copies. |
+| `$wgVaultTecMediaOptimizerAvifQuality` | `50` | AVIF quality (0-100). ~45-55 ≈ WebP 80-85; alpha preserved. |
+
+**Encoders**: Imagick with AVIF (libheif + AV1), PHP-GD with `imageavif()`, or the **libvips** engine
+(`heifsave` + AV1). The extension **actually probes** AV1 capability (a build can expose `heifsave` for HEIC
+yet lack an AV1 encoder); if AVIF is not truly encodable, it is **skipped cleanly** (WebP keeps being served,
+no render budget wasted). `Special:VTMOStatus` reports AVIF support. AVIF is not tracked in the statistics
+(experimental). Encoding is **slow** → off by default.
