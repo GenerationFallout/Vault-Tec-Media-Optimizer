@@ -3,7 +3,6 @@
 namespace MediaWiki\Extension\VaultTecMediaOptimizer\Hook;
 
 use MediaWiki\Config\ServiceOptions;
-use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PngRecompressorInterface;
@@ -44,8 +43,6 @@ class MainHooks implements
 	private JobQueueGroup $jobQueueGroup;
 	private PngRecompressorInterface $zopfli;
 	private LoggerInterface $logger;
-	/** Per-request budget for the slow thumbnail second pass (zopfli). Lazy-init. */
-	private ?int $thumbExtraBudget = null;
 
 	public function __construct(
 		HtmlRewriter $htmlRewriter,
@@ -155,8 +152,8 @@ class MainHooks implements
 	 * Only the fast WebP encode runs synchronously here (a typical 200KB thumb
 	 * is <50ms, and a given thumb triggers this hook only once, when first
 	 * generated). The SLOW extras — experimental AVIF and the zopflipng second
-	 * pass — are deferred to a POST_SEND update and bounded per request, so they
-	 * never add to a visitor's render latency (see below).
+	 * pass — are enqueued as a background job (processed out-of-band, ideally via
+	 * runJobs.php with $wgJobRunRate=0; see the docs), so they never block render.
 	 *
 	 * We work entirely with the tmpThumbPath (filesystem path, guaranteed)
 	 * and write into our parallel images_webp/ tree.
@@ -251,103 +248,39 @@ class MainHooks implements
 			] );
 		}
 
-		// Slow extras (experimental AVIF, and the zopflipng second pass on the
-		// thumbnail) are NOT run synchronously here: this hook fires WHILE a
-		// visitor's page is being rendered, and zopflipng alone costs seconds per
-		// file (see the benchmarks in the guide). Running them inline would make a
-		// cold gallery add seconds-to-minutes to one visitor's render. Instead we
-		// (a) bound how many thumbnails get the extras per request with the same
-		// budget as the on-demand rewriter (OnDemandThumbLimit), and (b) defer the
-		// work to a POST_SEND update that runs AFTER the response is flushed, so
-		// the visitor never waits. The cheap WebP above stays synchronous (it is
-		// the asset the rewriter serves). The deferred pass operates on the STORED
-		// thumbnail (by POST_SEND, MediaWiki has copied the temp thumb to its final
-		// location), not on the now-discarded $tmpThumbPath.
+		// Slow extras (experimental AVIF + the zopflipng second pass) are FAR too
+		// slow to run during a visitor's render (zopflipng ~14s/file). We do NOT run
+		// them inline; we enqueue a background job that does them on the STORED
+		// thumbnail, off-request. Process the queue out-of-band (runJobs.php with
+		// $wgJobRunRate=0) so no visitor ever pays — see the documentation. In
+		// large-wiki mode (UseJobQueue=false) we skip it. The cheap WebP above stays
+		// synchronous (it is the served asset).
 		$srcThumbStored = $webpInfo[2] ?? null;
 		$avifEnabled = (bool)$this->options->get( 'VaultTecMediaOptimizerAvifEnabled' );
 		$wantZopfli = ( $mime === 'image/png' ) && $this->zopfli->isAvailable();
-		if ( ( $avifEnabled || $wantZopfli ) && is_string( $srcThumbStored ) && $srcThumbStored !== '' ) {
-			if ( $this->thumbExtraBudget === null ) {
-				$this->thumbExtraBudget = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
+		if ( ( $avifEnabled || $wantZopfli )
+			&& is_string( $srcThumbStored ) && $srcThumbStored !== ''
+			&& $this->options->get( 'VaultTecMediaOptimizerUseJobQueue' )
+		) {
+			$avifDest = null;
+			if ( $avifEnabled ) {
+				$avifInfo = $this->webpRepo->getAvifUrlAndPath( $thumbUrl );
+				$avifDest = $avifInfo[1] ?? null;
 			}
-			if ( $this->thumbExtraBudget > 0 ) {
-				$this->thumbExtraBudget--;
-				$avifDest = null;
-				if ( $avifEnabled ) {
-					$avifInfo = $this->webpRepo->getAvifUrlAndPath( $thumbUrl );
-					$avifDest = $avifInfo[1] ?? null;
-				}
-				$name = $file->getName();
-				DeferredUpdates::addCallableUpdate( function () use ( $srcThumbStored, $avifDest, $webpDest, $mime, $name ) {
-					$this->runDeferredThumbExtras( $srcThumbStored, $avifDest, $webpDest, $mime, $name );
-				} );
-			} else {
-				$this->logger->debug(
-					'Thumb extras (AVIF/zopfli) skipped for {name}: per-request budget spent',
-					[ 'name' => $file->getName() ]
+			$jobTitle = Title::makeTitleSafe( NS_FILE, $file->getName() );
+			if ( $jobTitle ) {
+				$this->jobQueueGroup->lazyPush(
+					new JobSpecification(
+						'VaultTecMediaOptimizerThumbnailRecompress',
+						[ 'srcThumb' => $srcThumbStored, 'mime' => $mime, 'avifDest' => $avifDest, 'webpDest' => $webpDest ],
+						[ 'removeDuplicates' => true ],
+						$jobTitle
+					)
 				);
 			}
 		}
 
 		return true;
-	}
-
-	/**
-	 * Run the slow thumbnail extras (experimental AVIF + zopflipng second pass)
-	 * AFTER the response has been sent (POST_SEND deferred update). It therefore
-	 * never adds to a visitor's render latency. Operates on the STORED thumbnail
-	 * (final on-disk file), and is bounded per request by the caller's budget.
-	 */
-	private function runDeferredThumbExtras(
-		string $srcThumbStored,
-		?string $avifDest,
-		string $webpDest,
-		string $mime,
-		string $name
-	): void {
-		if ( !is_file( $srcThumbStored ) ) {
-			return;
-		}
-		// Experimental AVIF, kept only if strictly smaller than the WebP (a
-		// <picture> offers AVIF first, so a larger AVIF would cost more than WebP).
-		// A '.skip' marker avoids re-encoding a not-worth-it AVIF on later renders.
-		if ( $avifDest !== null
-			&& ( !is_file( $avifDest ) || filesize( $avifDest ) === 0 )
-			&& !$this->webpRepo->avifMarkedSkip( $avifDest, $srcThumbStored )
-			&& $this->webpRepo->ensureDirFor( $avifDest )
-		) {
-			try {
-				$optimizer = $this->optimizerFactory->getOptimizer();
-				if ( $optimizer->supportsAvif() ) {
-					$q = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
-					if ( $optimizer->convertToAvif( $srcThumbStored, $avifDest, $q ) ) {
-						$avifSz = filesize( $avifDest );
-						$webpSz = is_file( $webpDest ) ? filesize( $webpDest ) : false;
-						if ( $webpSz !== false && $webpSz > 0 && $avifSz !== false && $avifSz >= $webpSz ) {
-							@unlink( $avifDest );
-							$this->webpRepo->setAvifSkip( $avifDest );
-						} else {
-							$this->webpRepo->clearAvifSkip( $avifDest );
-						}
-					}
-				}
-			} catch ( Throwable $e ) {
-				$this->logger->debug( 'Deferred AVIF thumb failed for {name}: {msg}',
-					[ 'name' => $name, 'msg' => $e->getMessage() ] );
-			}
-		}
-		// zopflipng second pass on the stored PNG thumbnail (disk-only gain).
-		if ( $mime === 'image/png' && $this->zopfli->isAvailable() ) {
-			try {
-				$saved = $this->zopfli->recompress( $srcThumbStored );
-				if ( $saved !== null && $saved > 0 ) {
-					$this->record->addThumbZopfliSaving( $saved );
-				}
-			} catch ( Throwable $e ) {
-				$this->logger->debug( 'Deferred zopfli thumb failed for {name}: {msg}',
-					[ 'name' => $name, 'msg' => $e->getMessage() ] );
-			}
-		}
 	}
 
 	/**

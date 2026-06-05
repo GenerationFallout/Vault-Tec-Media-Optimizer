@@ -80,6 +80,16 @@
 				"VaultTecMediaOptimizer.ImageProcessor"
 			]
 		},
+		"VaultTecMediaOptimizerThumbnailRecompress": {
+			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Job\\ThumbnailRecompressJob",
+			"services": [
+				"VaultTecMediaOptimizer.ZopfliRecompressor",
+				"VaultTecMediaOptimizer.OptimizationRecord",
+				"VaultTecMediaOptimizer.OptimizerFactory",
+				"VaultTecMediaOptimizer.WebPRepo",
+				"VaultTecMediaOptimizer.Config"
+			]
+		},
 		"VaultTecMediaOptimizerZopfliOptimize": {
 			"class": "MediaWiki\\Extension\\VaultTecMediaOptimizer\\Job\\ZopfliOptimizeJob",
 			"services": [
