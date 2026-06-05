@@ -42,7 +42,7 @@ php maintenance/run.php update --quick   # crée les tables
 Vérifiez **Spécial:VaultTec_État** (tout au vert), puis lancez le rattrapage depuis **Spécial:VaultTec_Optimisation**.
 
 ### Voir aussi
-- **Manuel complet** (installation + administration, v1.8.1, bilingue FR/EN, sections 1–16 + tutoriel, dépendances & benchmarks intégrés) : [`docs/VaultTecMediaOptimizer-Documentation.pdf`](docs/VaultTecMediaOptimizer-Documentation.pdf).
+- **Manuel complet** (installation + administration, v1.8.2, bilingue FR/EN, sections 1–16 + tutoriel, dépendances & benchmarks intégrés) : [`docs/VaultTecMediaOptimizer-Documentation.pdf`](docs/VaultTecMediaOptimizer-Documentation.pdf).
 - **Performances, dépendances & benchmarks** : guide bilingue [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (installation des dépendances, benchmarks coût/bénéfice honnêtes).
 - **Nouveautés depuis la v1.4.1** (moteur libvips, GIF `gifsicle`, AVIF, scripts CLI, mode gros wiki, correctifs 1.8.x) : [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
 - Journal des modifications : [`CHANGELOG.md`](CHANGELOG.md).
@@ -78,7 +78,7 @@ php maintenance/run.php update --quick   # creates the tables
 Check **Special:VTMOStatus** (all green), then start the backfill from **Special:VTMOBackfill**.
 
 ### See also
-- **Complete manual** (install + administration, v1.8.1, bilingual FR/EN, sections 1–16 + tutorial, dependencies & benchmarks included): [`docs/VaultTecMediaOptimizer-Documentation.pdf`](docs/VaultTecMediaOptimizer-Documentation.pdf).
+- **Complete manual** (install + administration, v1.8.2, bilingual FR/EN, sections 1–16 + tutorial, dependencies & benchmarks included): [`docs/VaultTecMediaOptimizer-Documentation.pdf`](docs/VaultTecMediaOptimizer-Documentation.pdf).
 - **Performance, dependencies & benchmarks**: bilingual guide [`docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf`](docs/VaultTecMediaOptimizer-Performances-et-Bonnes-Pratiques.pdf) (dependency install, honest cost/benefit benchmarks).
 - **What's new since v1.4.1** (libvips engine, GIF `gifsicle`, AVIF, CLI scripts, large-wiki mode, 1.8.x fixes): [`docs/NEW_FEATURES.md`](docs/NEW_FEATURES.md).
 - Change log: [`CHANGELOG.md`](CHANGELOG.md).
