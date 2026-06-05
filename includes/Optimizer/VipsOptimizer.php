@@ -87,10 +87,12 @@ class VipsOptimizer implements OptimizerInterface {
 	}
 
 	/**
-	 * AVIF support requires the heifsave operation (libvips built with libheif
-	 * and an AV1 encoder). We probe the operation list once; if heifsave is
-	 * absent the caller skips AVIF gracefully (WebP stays primary). If heifsave
-	 * exists but lacks an AV1 encoder, the actual encode fails and is logged.
+	 * AVIF support requires libvips built with libheif AND an AV1 encoder. Merely
+	 * having the heifsave operation is NOT enough: a build can expose heifsave for
+	 * HEIC yet reject "--compression av1" ("Unsupported compression"). So we probe
+	 * for real: encode a tiny image to AVIF and check it succeeds. Memoized.
+	 * If unavailable, callers skip AVIF gracefully (WebP stays primary) — and,
+	 * crucially, no on-demand render budget is wasted on doomed AVIF encodes.
 	 */
 	public function supportsAvif(): bool {
 		if ( $this->avifAvailable !== null ) {
@@ -100,33 +102,23 @@ class VipsOptimizer implements OptimizerInterface {
 			$this->avifAvailable = false;
 			return false;
 		}
-		$listing = '';
-		if ( function_exists( 'proc_open' ) ) {
-			$descriptors = [ 0 => [ 'pipe', 'r' ], 1 => [ 'pipe', 'w' ], 2 => [ 'pipe', 'w' ] ];
-			$proc = @proc_open( [ $this->binary, '-l' ], $descriptors, $pipes );
-			if ( is_resource( $proc ) ) {
-				if ( isset( $pipes[0] ) ) {
-					fclose( $pipes[0] );
-				}
-				// vips prints the operation list to stdout on some versions and
-				// stderr on others; capture both.
-				if ( isset( $pipes[1] ) ) {
-					$listing .= (string)stream_get_contents( $pipes[1] );
-					fclose( $pipes[1] );
-				}
-				if ( isset( $pipes[2] ) ) {
-					$listing .= (string)stream_get_contents( $pipes[2] );
-					fclose( $pipes[2] );
-				}
-				proc_close( $proc );
-			}
-		} elseif ( function_exists( 'exec' ) ) {
-			$out = [];
-			@exec( escapeshellarg( (string)$this->binary ) . ' -l 2>&1', $out );
-			$listing = implode( "\n", $out );
+
+		$base = sys_get_temp_dir() . '/vtmo-avifprobe';
+		$srcProbe = $this->uniqueTempPath( $base . '.png' );
+		$dstProbe = $this->uniqueTempPath( $base . '.avif' );
+		// "vips black <out> <w> <h>" creates a tiny image (PNG by extension).
+		$ok = false;
+		if ( $this->runVips( [ 'black', $srcProbe, '16', '16' ] ) === 0 && is_file( $srcProbe ) ) {
+			$code = $this->runVips( [ 'heifsave', $srcProbe, $dstProbe, '--compression', 'av1', '--Q', '50' ] );
+			$ok = ( $code === 0 && is_file( $dstProbe ) && filesize( $dstProbe ) > 0 );
 		}
-		$this->avifAvailable = ( stripos( $listing, 'heifsave' ) !== false );
-		return $this->avifAvailable;
+		foreach ( [ $srcProbe, $dstProbe ] as $p ) {
+			if ( is_file( $p ) ) {
+				@unlink( $p );
+			}
+		}
+		$this->avifAvailable = $ok;
+		return $ok;
 	}
 
 	public function optimizePng( string $path ): bool {
@@ -136,7 +128,7 @@ class VipsOptimizer implements OptimizerInterface {
 			return false;
 		}
 		$tmp = $this->uniqueTempPath( $path );
-		if ( !$this->saveWithOptionalStrip( 'pngsave', $path, $tmp, 'compression=9' ) ) {
+		if ( !$this->saveWithOptionalStrip( [ 'pngsave', $path, $tmp, '--compression', '9' ] ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
@@ -152,11 +144,11 @@ class VipsOptimizer implements OptimizerInterface {
 			return false;
 		}
 		// Re-encode at a high quality (like the Imagick path, this is not strictly
-		// lossless; true lossless JPEG would need jpegtran/mozjpeg). optimize_coding
+		// lossless; true lossless JPEG would need jpegtran/mozjpeg). --optimize-coding
 		// shrinks the Huffman tables. trellis quant is intentionally NOT requested:
 		// it errors on non-mozjpeg vips builds, which would abort the encode.
 		$tmp = $this->uniqueTempPath( $path );
-		if ( !$this->saveWithOptionalStrip( 'jpegsave', $path, $tmp, 'Q=92,optimize_coding=true' ) ) {
+		if ( !$this->saveWithOptionalStrip( [ 'jpegsave', $path, $tmp, '--Q', '92', '--optimize-coding' ] ) ) {
 			if ( is_file( $tmp ) ) {
 				@unlink( $tmp );
 			}
@@ -166,39 +158,42 @@ class VipsOptimizer implements OptimizerInterface {
 	}
 
 	/**
-	 * Run a vips saver into $tmp with the given base options, adding strip=true
-	 * when metadata stripping is enabled. If the strip-enabled save fails — recent
-	 * libvips (>= 8.15) deprecated the 'strip' option in favour of 'keep', and a
-	 * build may reject it — retry once WITHOUT strip: optimizing without stripping
-	 * beats skipping the file (and the original is untouched on failure thanks to
-	 * keep-if-smaller). Sets lastError on hard failure. Returns true if $tmp was
-	 * written.
+	 * Run a vips saver, given as an argv array WITHOUT any metadata flag, where
+	 * index 2 is the output path. When metadata stripping is enabled we append
+	 * "--keep none" (libvips >= 8.15; older builds used --strip and lack --keep).
 	 *
-	 * @param string $op vips operation ('pngsave'|'jpegsave')
-	 * @param string $src Source path
-	 * @param string $tmp Destination temp path
-	 * @param string $baseOpts Comma-separated vips save options, without strip
+	 * IMPORTANT: vips save options must be passed as separate "--name value"
+	 * flags. The inline "out[opt=val]" form is NOT honoured by an explicit save
+	 * operation — vips would create a file literally named "out[opt=val]" and
+	 * the real output would never appear at $tmp.
+	 *
+	 * If the strip attempt fails, retry once WITHOUT it: optimizing without
+	 * stripping beats skipping the file (and the original is untouched on failure
+	 * thanks to keep-if-smaller). Sets lastError on hard failure.
+	 *
+	 * @param string[] $args [ op, src, out, ...format flags ]
 	 * @return bool
 	 */
-	private function saveWithOptionalStrip( string $op, string $src, string $tmp, string $baseOpts ): bool {
+	private function saveWithOptionalStrip( array $args ): bool {
 		$strip = (bool)$this->options->get( 'VaultTecMediaOptimizerStripMetadata' );
-		$opts = $baseOpts . ( $strip ? ',strip=true' : '' );
-		$code = $this->runVips( [ $op, $src, $tmp . '[' . $opts . ']' ] );
+		$out = $args[2] ?? '';
+		$code = $this->runVips( $strip ? array_merge( $args, [ '--keep', 'none' ] ) : $args );
 		if ( $code === 0 ) {
 			return true;
 		}
 		if ( $strip ) {
-			// The deprecated 'strip' option may be the culprit; retry without it.
-			if ( is_file( $tmp ) ) {
-				@unlink( $tmp );
+			// "--keep none" may be unsupported on an older build; retry without it.
+			if ( $out !== '' && is_file( $out ) ) {
+				@unlink( $out );
 			}
-			$code = $this->runVips( [ $op, $src, $tmp . '[' . $baseOpts . ']' ] );
+			$code = $this->runVips( $args );
 			if ( $code === 0 ) {
-				$this->logger->debug( 'vips {op}: retried without the deprecated strip option', [ 'op' => $op ] );
+				$this->logger->debug( 'vips {op}: retried without the metadata-strip flag',
+					[ 'op' => $args[0] ?? 'save' ] );
 				return true;
 			}
 		}
-		$this->lastError = "vips $op exited with code $code";
+		$this->lastError = 'vips ' . ( $args[0] ?? 'save' ) . " exited with code $code";
 		return false;
 	}
 
@@ -210,13 +205,20 @@ class VipsOptimizer implements OptimizerInterface {
 		}
 
 		// Load all frames for GIF so animated GIFs become animated WebP; for
-		// single-frame inputs n=-1 is harmless.
+		// single-frame inputs the loader ignores it. Input load options (unlike
+		// save options) ARE honoured inline on the source filename.
 		$srcExt = strtolower( pathinfo( $sourcePath, PATHINFO_EXTENSION ) );
 		$loadArg = $sourcePath . ( $srcExt === 'gif' ? '[n=-1]' : '' );
 
-		$opts = $lossless ? 'lossless=true' : ( 'Q=' . $quality );
 		$tmp = $this->uniqueTempPath( $destPath );
-		$code = $this->runVips( [ 'webpsave', $loadArg, $tmp . '[' . $opts . ']' ] );
+		$args = [ 'webpsave', $loadArg, $tmp, '--effort', '6' ];
+		if ( $lossless ) {
+			$args[] = '--lossless';
+		} else {
+			$args[] = '--Q';
+			$args[] = (string)$quality;
+		}
+		$code = $this->runVips( $args );
 		if ( $code !== 0 ) {
 			$this->lastError = "vips webpsave exited with code $code";
 			if ( is_file( $tmp ) ) {
@@ -238,10 +240,10 @@ class VipsOptimizer implements OptimizerInterface {
 		$srcExt = strtolower( pathinfo( $sourcePath, PATHINFO_EXTENSION ) );
 		$loadArg = $sourcePath . ( $srcExt === 'gif' ? '[n=-1]' : '' );
 
-		// heifsave with the AV1 codec produces AVIF. Q is the quality (0-100).
-		$opts = 'compression=av1,Q=' . $quality;
+		// heifsave with the AV1 codec produces AVIF. Options are separate flags
+		// (the inline "out[...]" form is not honoured by an explicit save op).
 		$tmp = $this->uniqueTempPath( $destPath );
-		$code = $this->runVips( [ 'heifsave', $loadArg, $tmp . '[' . $opts . ']' ] );
+		$code = $this->runVips( [ 'heifsave', $loadArg, $tmp, '--compression', 'av1', '--Q', (string)$quality ] );
 		if ( $code !== 0 ) {
 			$this->lastError = "vips heifsave exited with code $code";
 			if ( is_file( $tmp ) ) {
