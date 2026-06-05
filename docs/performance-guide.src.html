@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Vault-Tec Media Optimizer — Dépendances, performances & bonnes pratiques</title>
+<style>
+  @page { margin: 22mm 18mm 20mm 18mm; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10.5pt; color:#1a1a1a; line-height:1.45; }
+  h1.cover { color:#1f3a5f; font-size:30pt; margin:0; letter-spacing:1px; }
+  h1.cover small { display:block; color:#3a6ea5; font-size:20pt; font-weight:bold; }
+  .coverbar{ border-bottom:3px solid #2e5a86; margin:6px 0 18px; }
+  h1 { color:#1f3a5f; font-size:18pt; border-bottom:1px solid #c9d6e3; padding-bottom:4px; margin-top:26px; }
+  h2 { color:#2e5a86; font-size:13pt; margin-top:18px; }
+  h3 { color:#3a6ea5; font-size:11pt; margin-top:14px; }
+  code,pre { font-family:"DejaVu Sans Mono",monospace; font-size:9pt; }
+  pre { background:#f4f6f9; border-left:3px solid #2e5a86; padding:8px 10px; white-space:pre-wrap; }
+  code { background:#f0f3f7; padding:0 2px; }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:9.5pt; }
+  th,td { border:1px solid #c9d6e3; padding:5px 7px; text-align:left; vertical-align:top; }
+  th { background:#eaf0f6; color:#1f3a5f; }
+  td.num{ text-align:right; font-family:"DejaVu Sans Mono",monospace; white-space:nowrap; }
+  .box{ border:1px solid #e3c98a; background:#fcf6e8; padding:8px 12px; margin:10px 0; border-radius:3px; }
+  .box b{ color:#9a6a00; }
+  .good{ color:#1a7f37; font-weight:bold; } .warn{ color:#b3261e; font-weight:bold; }
+  ul{ margin:6px 0 6px 0; } li{ margin:2px 0; }
+  .small{ color:#666; font-size:9pt; }
+</style></head><body>
+
+<div style="text-align:center; margin-top:60px;">
+  <h1 class="cover">VAULT-TEC<small>MEDIA OPTIMIZER</small></h1>
+  <div class="coverbar"></div>
+  <p style="font-style:italic; font-size:13pt; color:#444;">Dépendances, performances &amp; bonnes pratiques</p>
+  <p class="small">Complément technique à la documentation v1.4.1 — couvre la v1.7.0<br>
+  Moteur libvips · Benchmarks réels · Anti-ralentissement<br>Extension MediaWiki — Archives de Vault-Tec</p>
+</div>
+
+<h1>1. À propos de ce document</h1>
+<p>Ce document <b>complète</b> le guide d'installation et d'administration v1.4.1. Il ne le répète pas :
+il se concentre sur trois sujets demandés et peu (ou pas) couverts ailleurs — l'<b>installation des
+dépendances</b>, des <b>benchmarks de performance mesurés</b>, et les <b>bonnes pratiques anti-ralentissement</b>.
+Pour la configuration générale, les pages spéciales, le dépannage et le tutoriel pas-à-pas, reportez-vous au
+guide v1.4.1 ; pour les nouveaux paramètres (moteur d'image, file de tâches), au fichier
+<code>docs/NEW_FEATURES.md</code>.</p>
+<div class="box"><b>Sans doublon.</b> Les commandes de configuration ne sont rappelées ici que lorsqu'elles
+sont indispensables à la compréhension d'une dépendance ou d'une bonne pratique. Le détail des paramètres
+vit dans le guide et dans <code>NEW_FEATURES.md</code>.</div>
+
+<h1>2. Installation des dépendances</h1>
+<p>L'extension fonctionne avec un minimum : une bibliothèque d'image avec support WebP. Les autres dépendances
+sont <b>optionnelles</b> et n'apportent qu'un bénéfice ciblé.</p>
+
+<table>
+<tr><th>Dépendance</th><th>Rôle</th><th>Obligatoire ?</th></tr>
+<tr><td>Imagick <i>ou</i> GD (avec WebP)</td><td>1ʳᵉ passe + encodage WebP</td><td><b>Oui</b> (l'une des deux)</td></tr>
+<tr><td>libvips (<code>vips</code>)</td><td>Moteur alternatif rapide/léger (§3)</td><td>Non — opt-in</td></tr>
+<tr><td>zopflipng</td><td>2ᵉ passe PNG sans perte (compression max)</td><td>Non — gain disque</td></tr>
+<tr><td>oxipng</td><td>2ᵉ passe PNG sans perte (rapide)</td><td>Non — gain disque</td></tr>
+<tr><td>libheif+AV1 / imageavif()</td><td>AVIF expérimental</td><td>Non — expérimental</td></tr>
+</table>
+
+<h2>2.1 Bibliothèque d'image : Imagick (recommandé) ou GD</h2>
+<pre>uk# Debian / Ubuntu
+sudo apt install php-imagick        # recommandé (meilleure transparence/ICC)
+sudo apt install php-gd             # repli, souvent déjà présent
+# RHEL / Alma / Rocky / Fedora
+sudo dnf install php-imagick php-gd
+sudo systemctl restart php-fpm apache2 2>/dev/null || true</pre>
+<p>Vérifiez le <b>support WebP</b> de la bibliothèque (sans lui, pas de génération possible) :</p>
+<pre>php -r 'echo extension_loaded("imagick")&&in_array("WEBP",Imagick::queryFormats())?"Imagick+WebP OK\n":"";'
+php -r '$i=gd_info();echo !empty($i["WebP Support"])?"GD+WebP OK\n":"GD sans WebP\n";'</pre>
+<p>La page <b>Spécial:VaultTec_État</b> affiche clairement la bibliothèque active et son support WebP.</p>
+
+<h2>2.2 Moteur libvips (optionnel — voir §3 pour le gain)</h2>
+<p>C'est le binaire en ligne de commande <code>vips</code> qui est utilisé (aucune extension PHP requise).</p>
+<pre># Debian / Ubuntu
+sudo apt install libvips-tools
+# RHEL / Alma / Rocky / Fedora (EPEL)
+sudo dnf install vips-tools
+# Alpine (Docker)
+apk add vips-tools
+# macOS (dev)
+brew install vips</pre>
+<p>Vérification :</p>
+<pre>vips --version                 # ex. vips-8.15.1
+vips -l | grep -i webpsave     # le sauveur WebP doit être listé</pre>
+<p>Activation (détails dans <code>NEW_FEATURES.md</code>) : <code>$wgVaultTecMediaOptimizerImageEngine =
+'vips';</code> et, si besoin, le chemin absolu via <code>…VipsBinary</code>. Si le binaire est inutilisable,
+l'extension <b>retombe automatiquement</b> sur Imagick/GD.</p>
+
+<h2>2.3 Seconde passe PNG : zopflipng</h2>
+<pre>sudo apt install zopfli      # fournit /usr/bin/zopflipng (Debian/Ubuntu)
+sudo dnf install zopfli      # RHEL/Fedora (EPEL)
+zopflipng --version 2>/dev/null; command -v zopflipng</pre>
+<p><b>zopflipng</b> = compression maximale mais <b>lent</b>. Réservez-le à la finition (voir §4).</p>
+
+<h2>2.4 Seconde passe PNG : oxipng (recommandé pour le volume)</h2>
+<p>oxipng (Rust, multi-thread, rapide) n'est pas toujours en paquet. Deux voies :</p>
+<pre># Via Rust (compilation sur la machine — évite les soucis de glibc)
+cargo install oxipng
+# Ou binaire précompilé (attention à « GLIBC_2.xx not found » : préférez compiler)</pre>
+<div class="box"><b>Piège open_basedir (mutualisé/Plesk).</b> Si PHP est restreint, un binaire dans
+<code>/usr/bin</code> reste invisible côté web. <b>Règle d'or :</b> copiez le binaire <i>dans</i> l'arborescence
+du wiki (ex. <code>httpdocs/bin/oxipng</code>), <code>chmod 755</code>, propriétaire = utilisateur PHP, puis
+configurez le <b>chemin absolu</b>. Idem pour <code>vips</code> et <code>zopflipng</code>.</div>
+
+<h2>2.5 AVIF (expérimental)</h2>
+<p>L'AVIF exige un encodeur <b>AV1</b>, via l'un de : Imagick compilé avec libheif+AV1, PHP-GD avec
+<code>imageavif()</code>, ou libvips avec <code>heifsave</code>+AV1. Beaucoup de paquets exposent
+<code>heifsave</code> pour le HEIC <b>sans</b> AV1 — l'extension le détecte et sert alors le WebP. Pour tester
+réellement la capacité AV1 de vips :</p>
+<pre>vips black /tmp/p.png 16 16 && vips heifsave /tmp/p.png /tmp/p.avif --compression av1 \
+  && echo "AV1 OK" || echo "AV1 indisponible"</pre>
+
+<h2>2.6 Matrice dépendance → fonctionnalité</h2>
+<table>
+<tr><th>Vous voulez…</th><th>Dépendance nécessaire</th></tr>
+<tr><td>Servir du WebP (bénéfice principal)</td><td>Imagick <i>ou</i> GD avec WebP</td></tr>
+<tr><td>Backfill rapide / faible mémoire à grande échelle</td><td>libvips</td></tr>
+<tr><td>Grappiller de l'espace disque sur les PNG</td><td>oxipng (rapide) ou zopflipng (max)</td></tr>
+<tr><td>Servir de l'AVIF (expérimental)</td><td>Encodeur AV1 (libheif/aom, ou GD imageavif)</td></tr>
+</table>
+
+<h1>3. Benchmarks de performance (mesures réelles)</h1>
+<h2>3.1 Méthodologie</h2>
+<p>Mesures réalisées sur cette machine de test avec <b>libvips 8.15.1</b>, <b>ImageMagick 6</b>,
+<b>cwebp</b> et <b>zopflipng 1.0.3</b>. Images synthétiques représentatives : une photo « plasma »
+(photographique, bruitée) et une capture documentaire (aplats + texte). Mémoire = pic RSS via
+<code>/usr/bin/time -v</code> ; temps = horloge murale. <span class="small">Les chiffres absolus dépendent de
+la machine et des images ; ce sont les <b>ordres de grandeur et ratios</b> qui importent.</span></p>
+
+<h2>3.2 Compression / espace</h2>
+<table>
+<tr><th>Source</th><th>Opération</th><th class="num">Avant</th><th class="num">Après</th><th class="num">Gain</th></tr>
+<tr><td>Photo JPEG (q90)</td><td>→ WebP q85</td><td class="num">613 Ko</td><td class="num">250 Ko</td><td class="num good">−59 %</td></tr>
+<tr><td>Photo PNG</td><td>→ WebP <i>lossless</i></td><td class="num">10,1 Mo</td><td class="num">3,2 Mo</td><td class="num good">−68 %</td></tr>
+<tr><td>Photo PNG</td><td>→ WebP q85 (avec perte)</td><td class="num">10,1 Mo</td><td class="num">254 Ko</td><td class="num good">−97 %</td></tr>
+<tr><td>Capture PNG</td><td>→ WebP <i>lossless</i></td><td class="num">52,5 Ko</td><td class="num">9,3 Ko</td><td class="num good">−82 %</td></tr>
+<tr><td>Capture PNG (original)</td><td>1ʳᵉ passe (recompression sans perte)</td><td class="num">52,5 Ko</td><td class="num">49,4 Ko</td><td class="num">−6 %</td></tr>
+<tr><td>Capture PNG (original)</td><td>+ 2ᵉ passe zopflipng</td><td class="num">49,4 Ko</td><td class="num">41,2 Ko</td><td class="num">−17 % de plus</td></tr>
+</table>
+<p><b>Lecture.</b> Le gros bénéfice <b>visiteur</b> vient du WebP servi (−59 % à −97 % selon l'image). La
+recompression sans perte de l'<b>original</b> (1ʳᵉ + 2ᵉ passe) ne gagne que quelques % à ~20 % d'<b>espace
+disque</b> — utile seulement si le stockage est une contrainte. C'est conforme à la conception : le WebP est
+le vrai levier de bande passante, la 2ᵉ passe un bonus disque.</p>
+
+<h2>3.3 Vitesse &amp; mémoire selon le moteur</h2>
+<p>Même encodage WebP, moteurs différents. <b>Le WebP produit est de taille/qualité équivalente</b> entre
+vips et cwebp (même bibliothèque libwebp) ; on compare donc surtout temps et mémoire.</p>
+<table>
+<tr><th>Scénario</th><th>Moteur</th><th class="num">Pic mémoire</th><th class="num">Temps</th></tr>
+<tr><td rowspan="2">Grande image 12 Mpx → WebP</td><td>libvips</td><td class="num good">102 Mo</td><td class="num">2,3 s</td></tr>
+<tr><td>ImageMagick</td><td class="num">174 Mo</td><td class="num">2,5 s</td></tr>
+<tr><td rowspan="2">Miniature 320 px (redim. + WebP)</td><td>libvips</td><td class="num good">61 Mo</td><td class="num">0,7 s</td></tr>
+<tr><td>ImageMagick</td><td class="num">163 Mo</td><td class="num">0,9 s</td></tr>
+<tr><td>Petite image 1,9 Mpx → WebP</td><td>libvips ≈ ImageMagick</td><td class="num">~40–46 Mo</td><td class="num">~0,4 s</td></tr>
+</table>
+<p><b>Lecture honnête.</b> L'avantage de libvips est net sur les <b>grandes images</b> (~1,7× moins de
+mémoire) et surtout les <b>pipelines de miniatures</b> (~2,7× moins, et plus rapide) — exactement la charge
+d'un gros backfill et de la génération à la volée. Sur une <b>petite</b> image isolée, la différence est
+<b>négligeable</b> (l'empreinte de base de libvips peut même la rendre légèrement supérieure). En clair :
+<b>vips vaut le coup à l'échelle</b>, pas pour quelques fichiers.</p>
+<div class="box"><b>À retenir.</b> vips ne réduit <b>pas</b> le poids des images servies (même libwebp que GD/Imagick) :
+il fait gagner du <b>temps de traitement et de la mémoire serveur</b>. AVIF non mesuré ici (pas d'encodeur AV1
+dans l'environnement de test).</div>
+
+<h1>4. Bonnes pratiques anti-ralentissement</h1>
+<h2>4.1 D'où vient le risque ?</h2>
+<ul>
+<li><b>File de tâches sur les requêtes web.</b> Par défaut MediaWiki exécute des jobs à la fin des requêtes
+(<code>$wgJobRunRate</code>). Or chaque job d'optimisation lance un encodage : ce sont alors vos <b>visiteurs</b>
+qui « paient » le traitement, et le wiki paraît lent.</li>
+<li><b>Génération WebP à la volée au rendu.</b> Le premier affichage d'une page « froide » encode les WebP
+manquants des miniatures qu'elle utilise (borné par <code>OnDemandThumbLimit</code>).</li>
+<li><b>2ᵉ passe synchrone (si activée).</b> zopflipng sur une miniature pendant le rendu peut coûter plusieurs
+centaines de ms.</li>
+</ul>
+
+<h2>4.2 Première installation (surtout gros wiki)</h2>
+<ol>
+<li><b>Ne déclenchez pas le backfill par la file pendant les heures de trafic.</b> Deux options propres :</li>
+</ol>
+<table>
+<tr><th>Option A — tout en CLI (recommandé gros wiki)</th><th>Option B — par la file, maîtrisée</th></tr>
+<tr><td>
+<pre>// LocalSettings.php
+$wgVaultTecMediaOptimizerUseJobQueue = false;</pre>
+Puis, dans un <code>screen</code> :
+<pre>php maintenance/run.php \
+  .../optimizeImages.php --batch=200</pre>
+Traite les originaux <b>hors file</b>, sans impacter les visiteurs. Reprenable (<code>--start</code>).
+</td><td>
+<pre>// LocalSettings.php — 0, pas plus !
+$wgJobRunRate = 0;</pre>
+Puis videz la file vous-même en SSH :
+<pre>php maintenance/run.php runJobs.php \
+  --type VaultTecMediaOptimizerOptimizeImage</pre>
+Si des jobs traînent d'un essai précédent : <code>purgeQueue.php</code>.
+</td></tr>
+</table>
+<div class="box"><b>Ne montez pas <code>$wgJobRunRate</code></b> (contrairement à certains messages génériques de
+MediaWiki) : cela <b>aggrave</b> le ralentissement en exécutant plus de jobs lourds sur les requêtes visiteurs.
+Pour un traitement lourd, la bonne valeur est <b>0</b>, combinée à un <code>runJobs.php</code> en SSH — ou
+carrément le script CLI dédié.</div>
+<ol start="2">
+<li><b>Lancez les gros traitements dans <code>screen</code>/<code>tmux</code></b> pour survivre à une déconnexion.</li>
+<li><b>Choisissez le moteur selon le volume.</b> Grosse photothèque → activez <b>libvips</b> (mémoire/vitesse, §3).</li>
+<li><b>Réglez <code>OnDemandThumbLimit</code></b> (défaut 5) : valeur basse = premiers rendus plus légers ; <code>0</code> = aucune génération à la volée (tout par le backfill).</li>
+<li><b>Purgez les caches À LA FIN</b> (wiki + CDN), pas pendant — purger en cours re-met en cache d'anciennes versions.</li>
+</ol>
+
+<h2>4.3 Usage courant</h2>
+<ul>
+<li><b>2ᵉ passe PNG : facultative, et de préférence oxipng.</b> Elle ne profite qu'au disque. Si vous l'activez,
+préférez <b>oxipng</b> (rapide) ; gardez zopflipng pour une finition ponctuelle hors trafic.</li>
+<li><b>En-têtes de cache HTTP longs sur <code>images_webp/</code></b> (et <code>images_avif/</code>) : levier majeur
+et souvent oublié pour réduire réellement la bande passante côté navigateur/CDN.</li>
+<li><b>Ne mélangez pas file et CLI</b> sur le même corpus en même temps (utilisez <code>--purge-queue</code>).</li>
+<li><b>Concurrence.</b> Évitez de lancer un script CLI <i>pendant</i> que la file traite le même stock : les
+écritures sont atomiques (pas de corruption), mais vous feriez du travail en double.</li>
+<li><b>Droits.</b> Lancez les scripts sous l'utilisateur de PHP, jamais en <code>root</code> (sinon fichiers
+non réécrasables ensuite).</li>
+</ul>
+
+<h2>4.4 Check-list express</h2>
+<table>
+<tr><th>Quand</th><th>À faire</th></tr>
+<tr><td>Avant backfill</td><td>Vérifier <b>Spécial:VaultTec_État</b> au vert ; choisir CLI (gros wiki) ; <code>$wgJobRunRate=0</code> ou <code>UseJobQueue=false</code>.</td></tr>
+<tr><td>Pendant</td><td>Traiter en <code>screen</code> (CLI ou <code>runJobs.php</code>) ; ne pas purger ; suivre <b>VaultTec_Statistiques</b>.</td></tr>
+<tr><td>Après</td><td>Purger caches wiki + CDN ; poser un <code>Cache-Control</code> long sur les WebP ; vérifier les balises <code>&lt;picture&gt;</code>.</td></tr>
+<tr><td>Au quotidien</td><td>Laisser faire l'automatique ; 2ᵉ passe oxipng optionnelle hors trafic.</td></tr>
+</table>
+
+<p class="small" style="margin-top:24px; border-top:1px solid #c9d6e3; padding-top:6px;">
+Vault-Tec Media Optimizer — complément v1.7.0. Benchmarks mesurés sur environnement de test ; reproduisez-les
+avec <code>tests/integration/pipeline.php</code> et vos propres images. Guide complet : PDF v1.4.1 ·
+Nouveautés : <code>docs/NEW_FEATURES.md</code> · Journal : <code>CHANGELOG.md</code>.</p>
+
+</body></html>
