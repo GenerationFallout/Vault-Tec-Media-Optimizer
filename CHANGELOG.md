@@ -5,6 +5,51 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.4]
+
+### 🇫🇷 Résumé
+Deux robustesses issues d'un audit en conditions réelles sur un gros wiki. **(1)** Un GIF **animé** que le moteur
+n'arrive pas à encoder en WebP animé (certains builds libvips/libwebp refusent les animations trop longues/grosses)
+n'est plus traité comme un **échec** : on conserve le GIF d'origine (déjà optimisé `gifsicle`, sans perte) et on
+enregistre un succès **sans WebP** — exactement comme la garde GIF animé du backend GD. L'animation reste servie.
+**(2)** Nouveau script `repairCorruptedFilenames.php` pour réparer les **originaux dont le nom de fichier sur le
+disque a dérivé** de celui en base (mojibake hérité d'une migration), que MediaWiki **et** l'optimiseur signalent
+en « file not found ». Appariement prudent par *squelette ASCII* + unicité, dry-run par défaut.
+
+### Fixed
+- **Animated GIF → WebP failure is no longer a hard error** — when the selected engine cannot encode a given
+  animated GIF to animated WebP (e.g. older libvips/libwebp rejecting large/long animations), `ImageProcessor`
+  now keeps the lossless gifsicle-optimized original and records **complete with no WebP** instead of `failed`,
+  mirroring the existing GD animated-GIF guard. The animation keeps being served; only its WebP derivative is
+  skipped for that file.
+
+### Added
+- **`maintenance/repairCorruptedFilenames.php`** — repairs local originals whose physical on-disk filename no
+  longer matches the DB name (Unicode/mojibake from a past migration), which makes both MediaWiki and the
+  optimizer report "file not found". Conservative: matches a single same-directory file by its ASCII skeleton
+  (drops bytes ≥ 0x80 and `%XX` escapes), renames only on an unambiguous match, never overwrites, dry-run unless
+  `--apply`, and logs every rename for reversal. Options: `--apply`, `--format`, `--limit`.
+
+## [1.8.3]
+
+### 🇫🇷 Résumé
+Corrige une **incompatibilité avec libvips < 8.12** (ex. 8.10.5 de Debian Bullseye). L'optimiseur vips passait
+en dur `--effort 6` à `webpsave`, option **renommée** (`--reduction-effort` → `--effort`) seulement en libvips
+8.12 : sur un build plus ancien, *chaque* encodage WebP via vips échouait avec « Unknown option --effort »
+(`vips webpsave exited with code 1`), bloquant notamment **toutes les conversions de GIF animés**. L'extension
+**détecte désormais une fois** le nom d'option accepté par le binaire (`--effort`, sinon `--reduction-effort`,
+sinon aucun) et l'utilise. Aucune image n'était corrompue par ce bug : un échec d'encodage n'écrit aucun WebP,
+donc l'original (GIF animé compris) restait servi tel quel.
+
+### Fixed
+- **libvips < 8.12 compatibility (`webpsave --effort`)** — `VipsOptimizer` hard-coded `--effort 6`, an option
+  that libvips only renamed from `--reduction-effort` to `--effort` in 8.12. On older builds (e.g. 8.10.5 on
+  Debian Bullseye) every vips WebP encode aborted with "Unknown option --effort", which surfaced as
+  `vips webpsave exited with code 1` and broke **all animated-GIF → WebP** conversions when the `vips` engine was
+  selected. The encoder now **probes once** which flag name the binary accepts (preferring `--effort`, falling
+  back to `--reduction-effort`, then to no flag = libwebp's default effort) and reuses it. No data was ever at
+  risk: a failed encode writes no WebP, so the original asset kept being served.
+
 ## [1.8.2]
 
 ### 🇫🇷 Résumé
