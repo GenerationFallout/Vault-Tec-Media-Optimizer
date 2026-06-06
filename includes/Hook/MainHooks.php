@@ -75,6 +75,14 @@ class MainHooks implements
 			return;
 		}
 
+		// Large-wiki mode: when the job queue is disabled, uploads are NOT
+		// auto-enqueued. The admin optimizes originals on their own schedule via
+		// maintenance/optimizeImages.php; thumbnails still get their WebP
+		// on-demand at render time, so visitors keep receiving WebP regardless.
+		if ( !$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' ) ) {
+			return;
+		}
+
 		$imgName = $file->getName();
 
 		// Only enqueue if the file's MIME type matches what we handle.
@@ -137,9 +145,11 @@ class MainHooks implements
 	 * matching WebP version next to the thumbnail so the HtmlRewriter can
 	 * serve it via <picture>.
 	 *
-	 * This runs synchronously during page render, but only for newly-generated
-	 * thumbs (existing thumbs are cached and won't re-trigger this hook).
-	 * For a typical 200KB thumb the WebP encode takes <50ms.
+	 * Only the fast WebP encode runs synchronously here (a typical 200KB thumb
+	 * is <50ms, and a given thumb triggers this hook only once, when first
+	 * generated). The SLOW zopflipng second pass is enqueued as a background
+	 * job (processed out-of-band — ideally via runJobs.php with $wgJobRunRate=0;
+	 * see the docs), so it never blocks a visitor's render.
 	 *
 	 * We work entirely with the tmpThumbPath (filesystem path, guaranteed)
 	 * and write into our parallel images_webp/ tree.
@@ -191,8 +201,10 @@ class MainHooks implements
 		}
 		[ , $webpDest ] = $webpInfo;
 
-		// Don't regenerate if already present
-		if ( is_file( $webpDest ) ) {
+		// Don't regenerate if already present and non-empty. A 0-byte/truncated
+		// leftover is treated as missing so we replace it (atomically) rather than
+		// leave a broken WebP that the rewriter would serve with no fallback.
+		if ( is_file( $webpDest ) && filesize( $webpDest ) > 0 ) {
 			return true;
 		}
 
@@ -232,31 +244,30 @@ class MainHooks implements
 			] );
 		}
 
-		// Second pass: losslessly recompress the thumbnail PNG itself with
-		// zopflipng (approach B — keep thumbnails optimized even after MW
-		// regenerates them). Only for PNG thumbnails, only if zopflipng is
-		// available. The thumbnail on disk is $tmpThumbPath (the file MW just
-		// wrote). Savings are tracked in the aggregate thumb-stats table.
-		if ( $mime === 'image/png' && $this->zopfli->isAvailable() ) {
-			try {
-				$saved = $this->zopfli->recompress( $tmpThumbPath );
-				if ( $saved === null ) {
-					$this->logger->debug( 'Zopfli thumb recompression failed for {name}: {err}', [
-						'name' => $file->getName(),
-						'err' => $this->zopfli->getLastError() ?? 'unknown',
-					] );
-				} elseif ( $saved > 0 ) {
-					$this->record->addThumbZopfliSaving( $saved );
-					$this->logger->debug( 'Zopfli saved {bytes} bytes on thumb {name}', [
-						'bytes' => $saved,
-						'name' => $file->getName(),
-					] );
-				}
-			} catch ( Throwable $e ) {
-				$this->logger->debug( 'Zopfli thumb recompression error for {name}: {msg}', [
-					'name' => $file->getName(),
-					'msg' => $e->getMessage(),
-				] );
+		// Second pass (zopflipng) on the new PNG thumbnail: a disk-only gain that
+		// is FAR too slow to run while a visitor's page renders — zopflipng costs
+		// seconds per file (see the benchmarks). We do NOT run it inline; instead
+		// we enqueue a background job that recompresses the STORED thumbnail (by
+		// the time the job runs, MediaWiki has copied the temp thumb to its final
+		// location). Process the queue out-of-band (runJobs.php with $wgJobRunRate
+		// = 0) so no visitor ever pays for it — see the documentation. In large-wiki
+		// mode (UseJobQueue = false) we skip it; the admin recompresses on their own
+		// schedule. The cheap WebP above stays synchronous (it is the served asset).
+		$srcThumbStored = $webpInfo[2] ?? null;
+		if ( $mime === 'image/png' && $this->zopfli->isAvailable()
+			&& is_string( $srcThumbStored ) && $srcThumbStored !== ''
+			&& $this->options->get( 'VaultTecMediaOptimizerUseJobQueue' )
+		) {
+			$jobTitle = Title::makeTitleSafe( NS_FILE, $file->getName() );
+			if ( $jobTitle ) {
+				$this->jobQueueGroup->lazyPush(
+					new JobSpecification(
+						'VaultTecMediaOptimizerThumbnailRecompress',
+						[ 'srcThumb' => $srcThumbStored, 'mime' => $mime ],
+						[ 'removeDuplicates' => true ],
+						$jobTitle
+					)
+				);
 			}
 		}
 

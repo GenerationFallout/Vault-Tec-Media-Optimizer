@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Vault-Tec Media Optimizer — Dépendances, performances &amp; bonnes pratiques (FR/EN)</title>
+<style>
+  @page { margin: 22mm 18mm 20mm 18mm; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10.5pt; color:#1a1a1a; line-height:1.45; }
+  h1.cover { color:#1f3a5f; font-size:30pt; margin:0; letter-spacing:1px; }
+  h1.cover small { display:block; color:#3a6ea5; font-size:20pt; font-weight:bold; }
+  .coverbar{ border-bottom:3px solid #2e5a86; margin:6px 0 18px; }
+  h1 { color:#1f3a5f; font-size:18pt; border-bottom:1px solid #c9d6e3; padding-bottom:4px; margin-top:26px; }
+  h2 { color:#2e5a86; font-size:13pt; margin-top:18px; }
+  h3 { color:#3a6ea5; font-size:11pt; margin-top:14px; }
+  code,pre { font-family:"DejaVu Sans Mono",monospace; font-size:9pt; }
+  pre { background:#f4f6f9; border-left:3px solid #2e5a86; padding:8px 10px; white-space:pre-wrap; }
+  code { background:#f0f3f7; padding:0 2px; }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:9.5pt; }
+  th,td { border:1px solid #c9d6e3; padding:5px 7px; text-align:left; vertical-align:top; }
+  th { background:#eaf0f6; color:#1f3a5f; }
+  td.num{ text-align:right; font-family:"DejaVu Sans Mono",monospace; white-space:nowrap; }
+  .box{ border:1px solid #e3c98a; background:#fcf6e8; padding:8px 12px; margin:10px 0; border-radius:3px; }
+  .box b{ color:#9a6a00; }
+  .good{ color:#1a7f37; font-weight:bold; } .warn{ color:#b3261e; font-weight:bold; }
+  ul{ margin:6px 0 6px 0; } li{ margin:2px 0; }
+  .small{ color:#666; font-size:9pt; }
+  .langsep{ page-break-before: always; }
+  .flag{ font-size:9pt; color:#2e5a86; font-weight:bold; letter-spacing:1px; }
+  .chart{ width:97%; max-width:600px; display:block; margin:12px auto 2px; border:1px solid #e0e0e0; }
+  .fcap{ text-align:center; color:#666; font-size:8.5pt; margin:0 0 8px; }
+</style></head><body>
+
+<!-- ============================ COVER ============================ -->
+<div style="text-align:center; margin-top:50px;">
+  <h1 class="cover">VAULT-TEC<small>MEDIA OPTIMIZER</small></h1>
+  <div class="coverbar"></div>
+  <p style="font-style:italic; font-size:13pt; color:#444;">Dépendances, performances &amp; bonnes pratiques<br>
+  <span style="font-size:11pt;">Dependencies, performance &amp; best practices</span></p>
+  <p class="small">Complément technique à la documentation v1.4.1 — couvre la <b>v1.8.2</b><br>
+  Moteur libvips · GIF (gifsicle) · AVIF · Coût/bénéfice réel modélisé + mesures (13 graphiques)<br>
+  Document <b>bilingue FR / EN</b> — Extension MediaWiki — Archives de Vault-Tec</p>
+  <p class="small" style="margin-top:18px;"><b>FR</b> · Partie française ci-dessous &nbsp;·&nbsp; <b>EN</b> · English version follows (same content)</p>
+</div>
+
+<!-- ############################################################## -->
+<!-- ######################## FRANÇAIS ############################# -->
+<!-- ############################################################## -->
+<p class="flag langsep">FR — VERSION FRANÇAISE</p>
+
+<h1>1. À propos de ce document</h1>
+<p>Ce document <b>complète</b> le guide d'installation et d'administration v1.4.1 ; il ne le répète pas. Il se
+concentre sur quatre sujets : les <b>nouveautés</b> depuis la 1.4.1, l'<b>installation des dépendances</b>, des
+<b>benchmarks honnêtes (modèle coût/bénéfice du wiki réel + mesures)</b>, et les <b>bonnes pratiques anti-ralentissement</b>.
+Pour la configuration générale, les pages spéciales et le dépannage, reportez-vous au guide v1.4.1 ; pour le
+détail des paramètres récents, à <code>docs/NEW_FEATURES.md</code> et <code>CHANGELOG.md</code>.</p>
+<div class="box"><b>Sans doublon.</b> Les commandes de configuration ne sont rappelées que lorsqu'elles sont
+indispensables à la compréhension d'une dépendance ou d'une bonne pratique.</div>
+
+<h1>2. Nouveautés depuis la v1.4.1</h1>
+<table>
+<tr><th>Version</th><th>Apport</th></tr>
+<tr><td><b>1.7.0</b></td><td>Moteur d'image <b>libvips</b> optionnel (vitesse/mémoire à l'échelle) ; <b>mode gros wiki</b>
+(<code>optimizeImages.php</code>, <code>purgeQueue.php</code>, <code>UseJobQueue</code>) ; <code>OnDemandThumbLimit</code> ;
+portabilité des statistiques (SQLite/PostgreSQL) ; écritures atomiques.</td></tr>
+<tr><td><b>1.8.0</b></td><td><b>Optimisation GIF sans perte</b> via le binaire externe <code>gifsicle</code>
+(<code>-O3</code>), en 1ʳᵉ passe, sûre pour l'animation (jamais de redimensionnement / d'altération des
+frames / de la cadence / de la boucle). Option <b><code>--format</code></b> du script de rattrapage (ex.
+<code>--format=gif</code>). Désactivé par défaut, opt-in.</td></tr>
+<tr><td><b>1.8.1</b></td><td><b>Correctifs robustesse :</b> resynchronisation des métadonnées MediaWiki
+(<code>img_sha1</code>/<code>img_size</code>) après la 1ʳᵉ passe en place ; <b>les GIF animés ne sont jamais
+figés</b> — sous GD (qui ne décode que la 1ʳᵉ frame) le WebP/AVIF est refusé et le GIF animé d'origine
+conservé ; les GIF statiques se convertissent enfin en WebP/AVIF sous GD (images à palette).</td></tr>
+<tr><td><i>exp.</i></td><td><b>AVIF expérimental</b> (branche dédiée) : génère l'AVIF en plus du WebP et le
+propose <i>avant</i> le WebP dans <code>&lt;picture&gt;</code>. Sonde réelle de capacité AV1 → repli propre
+sur WebP si l'encodeur ne sait pas faire d'AV1.</td></tr>
+</table>
+
+<h1>3. Installation des dépendances</h1>
+<p>L'extension fonctionne avec un minimum : une bibliothèque d'image avec support WebP. Tout le reste est
+<b>optionnel</b> et n'apporte qu'un bénéfice ciblé.</p>
+<table>
+<tr><th>Dépendance</th><th>Rôle</th><th>Obligatoire ?</th></tr>
+<tr><td>Imagick <i>ou</i> GD (avec WebP)</td><td>1ʳᵉ passe + encodage WebP</td><td><b>Oui</b> (l'une des deux)</td></tr>
+<tr><td>libvips (<code>vips</code>)</td><td>Moteur alternatif rapide/léger (§4)</td><td>Non — opt-in</td></tr>
+<tr><td><b>gifsicle</b></td><td>1ʳᵉ passe GIF sans perte (animation sûre)</td><td>Non — gain GIF</td></tr>
+<tr><td>zopflipng</td><td>2ᵉ passe PNG sans perte (compression max)</td><td>Non — gain disque</td></tr>
+<tr><td>oxipng</td><td>2ᵉ passe PNG sans perte (rapide)</td><td>Non — gain disque</td></tr>
+<tr><td>libheif+AV1 / <code>imageavif()</code></td><td>AVIF expérimental</td><td>Non — expérimental</td></tr>
+</table>
+
+<h2>3.1 Bibliothèque d'image : Imagick (recommandé) ou GD</h2>
+<pre># Debian / Ubuntu
+sudo apt install php-imagick        # recommandé (vraie transparence/ICC, vrai WebP lossless)
+sudo apt install php-gd             # repli, souvent déjà présent
+# RHEL / Alma / Rocky / Fedora
+sudo dnf install php-imagick php-gd
+sudo systemctl restart php-fpm apache2 2>/dev/null || true</pre>
+<p>Vérifiez le <b>support WebP</b> (sans lui, aucune génération possible) :</p>
+<pre>php -r 'echo extension_loaded("imagick")&&in_array("WEBP",Imagick::queryFormats())?"Imagick+WebP OK\n":"";'
+php -r '$i=gd_info();echo !empty($i["WebP Support"])?"GD+WebP OK\n":"GD sans WebP\n";'</pre>
+<div class="box"><b>GD ≠ vrai WebP/AVIF sans perte.</b> GD n'a pas de mode <i>lossless</i> réel (il approxime
+en qualité 100) : sur une capture d'UI à aplats, GD produit un WebP <b>~2,7× plus gros</b> qu'Imagick/libvips
+(mesuré : 19 Ko vs 6,9 Ko, §4.4). Pour les PNG nets, préférez Imagick ou libvips.</div>
+
+<h2>3.2 Optimisation GIF : gifsicle</h2>
+<pre># Debian / Ubuntu
+sudo apt install gifsicle
+# RHEL / Alma / Rocky / Fedora (EPEL)
+sudo dnf install gifsicle
+gifsicle --version | head -1</pre>
+<p>Activation (off par défaut) : <code>$wgVaultTecMediaOptimizerGifsicleEnabled = true;</code> — niveau via
+<code>…GifsicleLevel</code> (1–3, défaut 3), chemin via <code>…GifsicleBinary</code>. <b>Strictement sans
+perte et sûr pour l'animation</b> : seul <code>-O{niveau}</code> est passé (jamais de resize / lossy / colors).
+Si <code>gifsicle</code> manque, c'est un no-op inoffensif — la génération WebP continue.</p>
+
+<h2>3.3 Seconde passe PNG : zopflipng (max) ou oxipng (rapide)</h2>
+<pre>sudo apt install zopfli      # /usr/bin/zopflipng (Debian/Ubuntu) — compression max, LENT
+cargo install oxipng         # oxipng (Rust, multi-thread, rapide) si non empaqueté</pre>
+<div class="box"><b>Piège <code>open_basedir</code> (mutualisé/Plesk).</b> Si PHP est restreint, un binaire dans
+<code>/usr/bin</code> reste invisible côté web. <b>Règle d'or :</b> copiez le binaire <i>dans</i> l'arborescence
+du wiki (ex. <code>httpdocs/bin/oxipng</code>), <code>chmod 755</code>, propriétaire = utilisateur PHP, puis
+configurez le <b>chemin absolu</b>. Idem pour <code>vips</code>, <code>zopflipng</code> et <code>gifsicle</code>.</div>
+
+<h2>3.4 Moteur libvips (optionnel — voir §4 pour le gain)</h2>
+<pre># Debian/Ubuntu : sudo apt install libvips-tools   |   RHEL/Fedora : sudo dnf install vips-tools
+# Alpine : apk add vips-tools                        |   macOS (dev) : brew install vips
+vips --version ; vips -l | grep -i webpsave</pre>
+<p>Activation : <code>$wgVaultTecMediaOptimizerImageEngine = 'vips';</code> (+ <code>…VipsBinary</code> si
+besoin). Si le binaire est inutilisable, l'extension <b>retombe automatiquement</b> sur Imagick/GD.</p>
+
+<h2>3.5 AVIF (expérimental)</h2>
+<p>L'AVIF exige un encodeur <b>AV1</b> : Imagick compilé avec libheif+AV1, PHP-GD avec <code>imageavif()</code>,
+ou libvips avec <code>heifsave</code>+AV1. <b>Beaucoup de paquets exposent <code>heifsave</code> pour le HEIC
+sans AV1</b> — l'extension le détecte et sert alors le WebP. Test réel de la capacité AV1 de vips :</p>
+<pre>vips black /tmp/p.png 16 16 && vips heifsave /tmp/p.png /tmp/p.avif --compression av1 \
+  && echo "AV1 OK" || echo "AV1 indisponible"</pre>
+
+<h1>4. Benchmarks — ce que ça coûte, ce que ça rapporte</h1>
+<h2>4.1 Hypothèses &amp; méthode</h2>
+<p>Deux familles de chiffres. <b>(A)</b> un <b>modèle coût/bénéfice</b> du wiki réel, recalculé depuis des hypothèses explicites ; <b>(B)</b> des <b>mesures réelles</b> prises sur la machine de test (PHP 8.4, libvips 8.15.1, ImageMagick 6.9.12, gifsicle 1.94, zopflipng, PHP-GD ; <b>un seul cœur</b>). Tout est reproductible via <code>docs/benchmarks/model.py</code> et <code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Hypothèses du modèle</b> (unités décimales ; 365 j/an) :
+<ul>
+<li>Originaux du wiki : <b>52,62 Go</b> de PNG+JPEG (chiffre réel).</li>
+<li>Trafic en <b>borne haute (cache froid)</b> : <b>100 000 vues/jour</b>, <b>10 miniatures/page</b> → 1,0 M miniatures servies/jour. Le cache navigateur + CDN réduit fortement le trafic réel.</li>
+<li>Miniature servie moyenne <b>55,3 Ko</b> ; optimisation sans perte de la miniature −13,7 % ; WebP de la miniature −34 % (≈ <b>−43 %</b> vs brut).</li>
+<li>Recompression sans perte des originaux — 3 scénarios : <b>−7 % / −16 % / −24 %</b>.</li>
+<li>Copies WebP des originaux ≈ <b>70 %</b> de l'original optimisé, stockées <b>en plus</b>.</li>
+</ul></div>
+<p class="small"><b>Pourquoi ce cadrage ?</b> Une estimation antérieure confondait <i>compression par fichier</i> et <i>bande passante servie</i>. Les pages servent des <b>miniatures</b> (déjà petites), pas les originaux, et le WebP <b>ajoute</b> du disque puisqu'il s'ajoute aux originaux. Les figures séparent ces deux choses.</p>
+<h2>4.2 Bande passante servie — le vrai bénéfice</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bande passante servie par jour (borne haute, cache froid)"><p class="fcap">Bande passante servie par jour (borne haute, cache froid)</p>
+<p>Au niveau des <b>miniatures réellement servies</b>, le WebP fait passer le trafic de <b>~55 à ~31 Go/jour</b> (<b>−43 %</b>), soit <b>~8,7 To/an</b> — <b>en borne haute (cache froid)</b>.</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="Le To/an est une borne haute : il fond avec le cache (le −43 % reste)"><p class="fcap">Le To/an est une borne haute : il fond avec le cache (le −43 % reste)</p>
+<p>Le <b>ratio −43 % est robuste</b> ; le <b>To/an absolu est une borne haute</b> : les images sont très « cachables », donc avec un CDN/navigateur l'économie réelle n'est qu'une fraction de ce chiffre.</p>
+<h2>4.3 Disque : le WebP en AJOUTE</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disque occupé : avant / optimisé / avec WebP (3 scénarios)"><p class="fcap">Disque occupé : avant / optimisé / avec WebP (3 scénarios)</p>
+<p>Les WebP sont stockés <b>en plus</b> des originaux : le disque <b>monte</b> (52,6 → ~75 Go au médian). Optimiser les originaux ne reprend qu'un peu (−4 à −12 Go).</p>
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Variation de disque vs aujourd'hui (négatif = repris, positif = ajouté)"><p class="fcap">Variation de disque vs aujourd'hui (négatif = repris, positif = ajouté)</p>
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="L'arbitrage : coût disque ponctuel vs économie de bande passante annuelle"><p class="fcap">L'arbitrage : coût disque ponctuel vs économie de bande passante annuelle</p>
+<p><b>L'arbitrage honnête :</b> un <b>coût disque ponctuel (~+22 Go au médian)</b> contre une <b>économie de bande passante récurrente</b>. Le WebP est un levier de <b>bande passante</b>, pas de disque.</p>
+<h2>4.4 Compression par fichier (mesurée) — ≠ bande passante</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="Compression WebP par catégorie (taille du fichier, PAS le trafic)"><p class="fcap">Compression WebP par catégorie (taille du fichier, PAS le trafic)</p>
+<p>Ces gains sont réels mais portent sur le <b>fichier lui-même</b> : un −73 % sur un PNG de 24 Mo est spectaculaire mais <b>rarement servi</b> (on sert sa miniature). D'où la modélisation séparée de la bande passante (§4.2).</p>
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)"><p class="fcap">WebP sans perte : le moteur compte (GD ≈ 2,7× plus gros)</p>
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (expérimental) — à qualité égale, gain dépendant du contenu/encodeur"><p class="fcap">AVIF vs WebP (expérimental, même encodeur GD, qualité égale) — l'AVIF n'est pas systématiquement plus petit</p>
+<p>Le <b>moteur compte</b> : GD n'a pas de vrai lossless. À qualité égale, l'<b>AVIF</b> <b>n'est pas systématiquement plus petit</b> que le WebP : cela dépend du contenu et de l'encodeur (avec GD, il ne gagne qu'en basse qualité). De plus l'encodeur AV1 manquait côté vips dans l'env de test (repli WebP automatique). D'où le statut expérimental.</p>
+<h2>4.5 GIF &amp; 2ᵉ passe PNG (disque)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF sans perte (gifsicle -O3), animation préservée"><p class="fcap">GIF sans perte (gifsicle -O3), animation préservée</p>
+<img class="chart" src="benchmarks/10-png-passes.png" alt="PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)"><p class="fcap">PNG original : 1ʳᵉ et 2ᵉ passe sans perte (gain disque)</p>
+<p><b>gifsicle</b> : −60 à −66 % sur les GIF, sans perte ni atteinte à l'animation, pour ~20 ms. La <b>2ᵉ passe PNG (zopflipng)</b> ne grappille que ~−12 % de disque… en ~14 s : hors trafic, ou préférez oxipng.</p>
+<h2>4.6 Moteur : mémoire, vitesse, débit</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Pic mémoire : libvips vs ImageMagick (mesuré)"><p class="fcap">Pic mémoire : libvips vs ImageMagick (mesuré)</p>
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Temps : libvips vs ImageMagick (mesuré, échelle log)"><p class="fcap">Temps : libvips vs ImageMagick (mesuré, échelle log)</p>
+<p><b>Lecture honnête (mesures aux réglages réels de l'extension : PNG → WebP lossless, JPEG → q85).</b> libvips utilise <b>moins de mémoire partout</b>, surtout sur les <b>miniatures</b> (~2,7–3,5×). Côté <b>vitesse</b>, l'avantage n'est <b>pas</b> universel : il est net sur les <b>miniatures JPEG</b> (~40×, grâce au <i>shrink-on-load</i>), mais sur un <b>gros PNG lossless</b> libvips n'est <b>pas plus rapide</b> (il est même un peu plus lent : 17 s vs 11 s), car le PNG n'a pas de décodage à échelle réduite. Bilan : vips fait surtout gagner de la <b>mémoire</b> (et du temps sur les miniatures JPEG).</p>
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Débit par profil de wiki (libvips, un cœur)"><p class="fcap">Débit par profil de wiki (libvips, un cœur)</p>
+<p>Le <b>débit</b> varie selon la richesse média (~245 à ~65 images/min sur un cœur) ; le ratio de bande passante reste ~−71/−72 %. Parallélisez le backfill pour multiplier le débit.</p>
+
+<h1>5. Bonnes pratiques anti-ralentissement</h1>
+<h2>5.1 D'où vient le risque ?</h2>
+<ul>
+<li><b>File de tâches sur les requêtes web.</b> Par défaut, MediaWiki exécute des jobs en fin de requête
+(<code>$wgJobRunRate</code>) : ce sont alors vos <b>visiteurs</b> qui « paient » l'encodage.</li>
+<li><b>Génération WebP à la volée au rendu.</b> Le premier affichage d'une page froide encode les WebP manquants
+des miniatures qu'elle utilise (borné par <code>OnDemandThumbLimit</code>).</li>
+<li><b>2ᵉ passe synchrone (si activée).</b> zopflipng sur une miniature peut coûter plusieurs centaines de ms à
+plusieurs secondes (cf. §4.3).</li>
+</ul>
+<h2>5.2 Première installation (surtout gros wiki)</h2>
+<table>
+<tr><th>Option A — tout en CLI (recommandé gros wiki)</th><th>Option B — par la file, maîtrisée</th></tr>
+<tr><td><pre>// LocalSettings.php
+$wgVaultTecMediaOptimizerUseJobQueue = false;</pre>
+Puis dans un <code>screen</code> :
+<pre>php maintenance/run.php \
+  .../optimizeImages.php --batch=200</pre>
+Hors file, sans impacter les visiteurs. Reprenable (<code>--start</code>), filtrable (<code>--format=gif</code>).</td>
+<td><pre>// LocalSettings.php — 0, pas plus !
+$wgJobRunRate = 0;</pre>
+Puis videz la file en SSH :
+<pre>php maintenance/run.php runJobs.php \
+  --type VaultTecMediaOptimizerOptimizeImage</pre>
+Jobs résiduels : <code>purgeQueue.php</code>.</td></tr>
+</table>
+<div class="box"><b>Ne montez pas <code>$wgJobRunRate</code></b> : cela <b>aggrave</b> le ralentissement (plus de jobs
+lourds sur les requêtes visiteurs). Pour un traitement lourd, la bonne valeur est <b>0</b>, combinée à un
+<code>runJobs.php</code> en SSH — ou le script CLI dédié. <b>Le 2ᵉ passage zopflipng des miniatures</b> passe lui aussi par un <b>job</b> (depuis la 1.8.2) : même règle — traitez la file hors requête pour qu'aucun visiteur ne paie ce temps.</div>
+<ul>
+<li><b>Choisissez le moteur selon le volume.</b> Grosse photothèque → <b>libvips</b> (mémoire/vitesse, §4.4).</li>
+<li><b>Réglez <code>OnDemandThumbLimit</code></b> (défaut 5) : bas = premiers rendus plus légers ; <code>0</code> = tout par le backfill.</li>
+<li><b>Purgez les caches À LA FIN</b> (wiki + CDN), pas pendant.</li>
+</ul>
+<h2>5.3 Usage courant</h2>
+<ul>
+<li><b>GIF :</b> activez <code>gifsicle</code> — gain franc (−66 %), coût négligeable, animation préservée.</li>
+<li><b>2ᵉ passe PNG :</b> facultative et de préférence <b>oxipng</b> ; gardez zopflipng pour une finition hors trafic.</li>
+<li><b>En-têtes de cache HTTP longs</b> sur <code>images_webp/</code> (et <code>images_avif/</code>) : levier majeur
+souvent oublié pour réduire réellement la bande passante.</li>
+<li><b>Ne mélangez pas file et CLI</b> sur le même corpus (écritures atomiques = pas de corruption, mais travail en double).</li>
+<li><b>Droits :</b> lancez les scripts sous l'utilisateur PHP, jamais en <code>root</code>.</li>
+</ul>
+
+<p class="small" style="margin-top:18px; border-top:1px solid #c9d6e3; padding-top:6px;">
+Vault-Tec Media Optimizer — complément v1.8.2. Benchmarks mesurés et pondérés sur environnement de test.
+Guide complet : PDF v1.4.1 · Nouveautés : <code>docs/NEW_FEATURES.md</code> · Journal : <code>CHANGELOG.md</code>.</p>
+
+<!-- ############################################################## -->
+<!-- ######################### ENGLISH ############################ -->
+<!-- ############################################################## -->
+<p class="flag langsep">EN — ENGLISH VERSION</p>
+
+<h1>1. About this document</h1>
+<p>This document <b>complements</b> the v1.4.1 installation and administration guide; it does not repeat it. It
+focuses on four topics: <b>what's new</b> since 1.4.1, <b>installing the dependencies</b>, <b>honest benchmarks (real-wiki cost/benefit model + measurements)</b>, and <b>best practices to avoid slowing the wiki down</b>. For general
+configuration, special pages and troubleshooting, see the v1.4.1 guide; for recent settings in detail, see
+<code>docs/NEW_FEATURES.md</code> and <code>CHANGELOG.md</code>.</p>
+<div class="box"><b>No duplication.</b> Configuration commands are repeated here only when essential to understand a
+dependency or a best practice.</div>
+
+<h1>2. What's new since v1.4.1</h1>
+<table>
+<tr><th>Version</th><th>What it adds</th></tr>
+<tr><td><b>1.7.0</b></td><td>Optional <b>libvips</b> image engine (speed/memory at scale); <b>large-wiki mode</b>
+(<code>optimizeImages.php</code>, <code>purgeQueue.php</code>, <code>UseJobQueue</code>); <code>OnDemandThumbLimit</code>;
+portable statistics (SQLite/PostgreSQL); atomic writes.</td></tr>
+<tr><td><b>1.8.0</b></td><td><b>Lossless GIF optimization</b> via the external <code>gifsicle</code> binary
+(<code>-O3</code>), as a first pass, animation-safe (never resizes / never alters frames / timing / loop).
+<b><code>--format</code></b> filter for the catch-up script (e.g. <code>--format=gif</code>). Off by default, opt-in.</td></tr>
+<tr><td><b>1.8.1</b></td><td><b>Robustness fixes:</b> MediaWiki metadata (<code>img_sha1</code>/<code>img_size</code>)
+refreshed after the in-place first pass; <b>animated GIFs are never frozen</b> — under GD (which decodes only the
+first frame) the WebP/AVIF is refused and the original animated GIF kept; still GIFs finally convert to WebP/AVIF
+under GD (palette images).</td></tr>
+<tr><td><i>exp.</i></td><td><b>Experimental AVIF</b> (dedicated branch): generates AVIF alongside WebP and offers
+it <i>before</i> WebP inside <code>&lt;picture&gt;</code>. Real AV1-capability probe → clean fallback to WebP when
+the encoder cannot do AV1.</td></tr>
+</table>
+
+<h1>3. Installing the dependencies</h1>
+<p>The extension runs with a bare minimum: an image library with WebP support. Everything else is <b>optional</b>
+and only adds a targeted benefit.</p>
+<table>
+<tr><th>Dependency</th><th>Role</th><th>Required?</th></tr>
+<tr><td>Imagick <i>or</i> GD (with WebP)</td><td>First pass + WebP encoding</td><td><b>Yes</b> (either one)</td></tr>
+<tr><td>libvips (<code>vips</code>)</td><td>Fast/light alternative engine (§4)</td><td>No — opt-in</td></tr>
+<tr><td><b>gifsicle</b></td><td>Lossless GIF first pass (animation-safe)</td><td>No — GIF gain</td></tr>
+<tr><td>zopflipng</td><td>2nd-pass lossless PNG (max compression)</td><td>No — disk gain</td></tr>
+<tr><td>oxipng</td><td>2nd-pass lossless PNG (fast)</td><td>No — disk gain</td></tr>
+<tr><td>libheif+AV1 / <code>imageavif()</code></td><td>Experimental AVIF</td><td>No — experimental</td></tr>
+</table>
+
+<h2>3.1 Image library: Imagick (recommended) or GD</h2>
+<pre># Debian / Ubuntu
+sudo apt install php-imagick        # recommended (true transparency/ICC, true lossless WebP)
+sudo apt install php-gd             # fallback, often already present
+# RHEL / Alma / Rocky / Fedora
+sudo dnf install php-imagick php-gd
+sudo systemctl restart php-fpm apache2 2>/dev/null || true</pre>
+<p>Check <b>WebP support</b> (without it, no generation is possible):</p>
+<pre>php -r 'echo extension_loaded("imagick")&&in_array("WEBP",Imagick::queryFormats())?"Imagick+WebP OK\n":"";'
+php -r '$i=gd_info();echo !empty($i["WebP Support"])?"GD+WebP OK\n":"GD without WebP\n";'</pre>
+<div class="box"><b>GD is not true lossless WebP/AVIF.</b> GD has no real <i>lossless</i> mode (it approximates with
+quality 100): on a flat UI capture, GD produces a WebP <b>~2.7× larger</b> than Imagick/libvips (measured: 19 KB
+vs 6.9 KB, §4.4). For crisp PNGs, prefer Imagick or libvips.</div>
+
+<h2>3.2 GIF optimization: gifsicle</h2>
+<pre># Debian / Ubuntu
+sudo apt install gifsicle
+# RHEL / Alma / Rocky / Fedora (EPEL)
+sudo dnf install gifsicle
+gifsicle --version | head -1</pre>
+<p>Enable (off by default): <code>$wgVaultTecMediaOptimizerGifsicleEnabled = true;</code> — level via
+<code>…GifsicleLevel</code> (1–3, default 3), path via <code>…GifsicleBinary</code>. <b>Strictly lossless and
+animation-safe</b>: only <code>-O{level}</code> is passed (never resize / lossy / colors). If <code>gifsicle</code>
+is missing it is a harmless no-op — WebP generation still proceeds.</p>
+
+<h2>3.3 Second-pass PNG: zopflipng (max) or oxipng (fast)</h2>
+<pre>sudo apt install zopfli      # /usr/bin/zopflipng (Debian/Ubuntu) — max compression, SLOW
+cargo install oxipng         # oxipng (Rust, multi-threaded, fast) when not packaged</pre>
+<div class="box"><b><code>open_basedir</code> trap (shared hosting/Plesk).</b> If PHP is restricted, a binary in
+<code>/usr/bin</code> stays invisible to the web side. <b>Golden rule:</b> copy the binary <i>inside</i> the wiki
+tree (e.g. <code>httpdocs/bin/oxipng</code>), <code>chmod 755</code>, owner = PHP user, then configure the
+<b>absolute path</b>. Same for <code>vips</code>, <code>zopflipng</code> and <code>gifsicle</code>.</div>
+
+<h2>3.4 libvips engine (optional — see §4 for the gain)</h2>
+<pre># Debian/Ubuntu: sudo apt install libvips-tools   |   RHEL/Fedora: sudo dnf install vips-tools
+# Alpine: apk add vips-tools                        |   macOS (dev): brew install vips
+vips --version ; vips -l | grep -i webpsave</pre>
+<p>Enable: <code>$wgVaultTecMediaOptimizerImageEngine = 'vips';</code> (+ <code>…VipsBinary</code> if needed). If the
+binary is unusable, the extension <b>falls back automatically</b> to Imagick/GD.</p>
+
+<h2>3.5 AVIF (experimental)</h2>
+<p>AVIF needs an <b>AV1</b> encoder: Imagick built with libheif+AV1, PHP-GD with <code>imageavif()</code>, or
+libvips with <code>heifsave</code>+AV1. <b>Many packages expose <code>heifsave</code> for HEIC without AV1</b> — the
+extension detects this and serves WebP instead. Real AV1-capability test for vips:</p>
+<pre>vips black /tmp/p.png 16 16 && vips heifsave /tmp/p.png /tmp/p.avif --compression av1 \
+  && echo "AV1 OK" || echo "AV1 unavailable"</pre>
+
+<h1>4. Benchmarks — what it costs, what it saves</h1>
+<h2>4.1 Assumptions &amp; method</h2>
+<p>Two families of figures. <b>(A)</b> a <b>cost/benefit model</b> of the real wiki, recomputed from explicit assumptions; <b>(B)</b> <b>real measurements</b> on the test box (PHP 8.4, libvips 8.15.1, ImageMagick 6.9.12, gifsicle 1.94, zopflipng, PHP-GD; <b>single core</b>). Everything is reproducible via <code>docs/benchmarks/model.py</code> and <code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Model assumptions</b> (decimal units; 365 d/yr):
+<ul>
+<li>Wiki originals: <b>52.62 GB</b> of PNG+JPEG (real figure).</li>
+<li>Traffic <b>upper bound (cold cache)</b>: <b>100,000 views/day</b>, <b>10 thumbnails/page</b> → 1.0 M thumbnail-serves/day. Browser + CDN caching strongly reduce real traffic.</li>
+<li>Average served thumbnail <b>55.3 KB</b>; lossless thumbnail optimization −13.7%; WebP of the thumbnail −34% (≈ <b>−43%</b> vs raw).</li>
+<li>Lossless original recompression — 3 scenarios: <b>−7% / −16% / −24%</b>.</li>
+<li>WebP copies of originals ≈ <b>70%</b> of the optimized original, stored <b>in addition</b>.</li>
+</ul></div>
+<p class="small"><b>Why this framing?</b> An earlier estimate conflated <i>per-file compression</i> with <i>served bandwidth</i>. Pages serve <b>thumbnails</b> (already small), not originals, and WebP <b>adds</b> disk since it sits alongside the originals. The figures separate the two.</p>
+<h2>4.2 Served bandwidth — the real benefit</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bandwidth served per day (cold-cache upper bound)"><p class="fcap">Bandwidth served per day (cold-cache upper bound)</p>
+<p>At the level of <b>thumbnails actually served</b>, WebP takes traffic from <b>~55 to ~31 GB/day</b> (<b>−43%</b>), i.e. <b>~8.7 TB/year</b> — as a <b>cold-cache upper bound</b>.</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="The TB/year is an upper bound: it shrinks with caching (the −43% holds)"><p class="fcap">The TB/year is an upper bound: it shrinks with caching (the −43% holds)</p>
+<p>The <b>−43% ratio is robust</b>; the <b>absolute TB/year is an upper bound</b>: images are highly cacheable, so with a CDN/browser the real saving is a fraction of that figure.</p>
+<h2>4.3 Disk: WebP ADDS to it</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disk occupied: before / optimized / with WebP (3 scenarios)"><p class="fcap">Disk occupied: before / optimized / with WebP (3 scenarios)</p>
+<p>WebP files are stored <b>in addition</b> to the originals: disk <b>goes up</b> (52.6 → ~75 GB median). Optimizing originals only reclaims a little (−4 to −12 GB).</p>
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Disk-space change vs today (negative = reclaimed, positive = added)"><p class="fcap">Disk-space change vs today (negative = reclaimed, positive = added)</p>
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="The trade-off: one-time disk cost vs recurring annual bandwidth saving"><p class="fcap">The trade-off: one-time disk cost vs recurring annual bandwidth saving</p>
+<p><b>The honest trade-off:</b> a <b>one-time disk cost (~+22 GB median)</b> against a <b>recurring bandwidth saving</b>. WebP is a <b>bandwidth</b> lever, not a disk one.</p>
+<h2>4.4 Per-file compression (measured) — ≠ bandwidth</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="Per-file WebP compression by category (file size, NOT traffic)"><p class="fcap">Per-file WebP compression by category (file size, NOT traffic)</p>
+<p>These gains are real but apply to the <b>file itself</b>: −73% on a 24 MB PNG is striking but <b>rarely served</b> (its thumbnail is). Hence the separate bandwidth model (§4.2).</p>
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="Lossless WebP: the engine matters (GD ≈ 2.7× larger)"><p class="fcap">Lossless WebP: the engine matters (GD ≈ 2.7× larger)</p>
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP (experimental) — smaller, but needs AV1"><p class="fcap">AVIF vs WebP (experimental) — smaller, but needs AV1</p>
+<p>The <b>engine matters</b>: GD has no true lossless. At equal quality, <b>AVIF is not systematically smaller</b> than WebP: it depends on content and encoder (with GD it only wins at low quality). The AV1 encoder was also missing on the vips side in the test env (automatic WebP fallback). Hence the experimental status.</p>
+<h2>4.5 GIF &amp; 2nd-pass PNG (disk)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="Lossless GIF (gifsicle -O3), animation preserved"><p class="fcap">Lossless GIF (gifsicle -O3), animation preserved</p>
+<img class="chart" src="benchmarks/10-png-passes.png" alt="Original PNG: first & second lossless passes (disk gain)"><p class="fcap">Original PNG: first & second lossless passes (disk gain)</p>
+<p><b>gifsicle</b>: −60 to −66% on GIFs, lossless and animation-safe, for ~20 ms. The <b>2nd-pass PNG (zopflipng)</b> only shaves ~−12% of disk… in ~14 s: off-traffic, or prefer oxipng.</p>
+<h2>4.6 Engine: memory, speed, throughput</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Peak memory: libvips vs ImageMagick (measured)"><p class="fcap">Peak memory: libvips vs ImageMagick (measured)</p>
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Time: libvips vs ImageMagick (measured, log scale)"><p class="fcap">Time: libvips vs ImageMagick (measured, log scale)</p>
+<p><b>Honest reading (measured at the extension's real modes: PNG → lossless WebP, JPEG → q85).</b> libvips uses <b>less memory everywhere</b>, especially on <b>thumbnails</b> (~2.7–3.5×). On <b>speed</b> the advantage is <b>not</b> universal: it is large on <b>JPEG thumbnails</b> (~40×, thanks to <i>shrink-on-load</i>), but on a <b>big lossless PNG</b> libvips is <b>not faster</b> (even a bit slower: 17 s vs 11 s), because PNG has no reduced-scale decode. Bottom line: vips mainly saves <b>memory</b> (and time on JPEG thumbnails).</p>
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Throughput by wiki profile (libvips, single core)"><p class="fcap">Throughput by wiki profile (libvips, single core)</p>
+<p><b>Throughput</b> varies with media richness (~245 to ~65 images/min on one core); the bandwidth ratio stays ~−71/−72%. Parallelize the backfill to multiply throughput.</p>
+
+<h1>5. Best practices to avoid slowdowns</h1>
+<h2>5.1 Where does the risk come from?</h2>
+<ul>
+<li><b>Job queue on web requests.</b> By default MediaWiki runs jobs at the end of requests
+(<code>$wgJobRunRate</code>): your <b>visitors</b> then pay for the encoding.</li>
+<li><b>On-the-fly WebP generation at render.</b> The first view of a cold page encodes the missing WebP files for
+the thumbnails it uses (bounded by <code>OnDemandThumbLimit</code>).</li>
+<li><b>Synchronous 2nd pass (if enabled).</b> zopflipng on a thumbnail can cost hundreds of ms to several seconds
+(see §4.3).</li>
+</ul>
+<h2>5.2 First install (especially large wikis)</h2>
+<table>
+<tr><th>Option A — all CLI (recommended for large wikis)</th><th>Option B — via the queue, controlled</th></tr>
+<tr><td><pre>// LocalSettings.php
+$wgVaultTecMediaOptimizerUseJobQueue = false;</pre>
+Then in a <code>screen</code>:
+<pre>php maintenance/run.php \
+  .../optimizeImages.php --batch=200</pre>
+Off-queue, no visitor impact. Resumable (<code>--start</code>), filterable (<code>--format=gif</code>).</td>
+<td><pre>// LocalSettings.php — 0, no more!
+$wgJobRunRate = 0;</pre>
+Then drain the queue over SSH:
+<pre>php maintenance/run.php runJobs.php \
+  --type VaultTecMediaOptimizerOptimizeImage</pre>
+Leftover jobs: <code>purgeQueue.php</code>.</td></tr>
+</table>
+<div class="box"><b>Do not raise <code>$wgJobRunRate</code></b>: it <b>worsens</b> the slowdown (more heavy jobs on
+visitor requests). For heavy processing the right value is <b>0</b>, combined with <code>runJobs.php</code> over
+SSH — or the dedicated CLI script. <b>The thumbnail zopflipng second pass</b> also goes through a <b>job</b> (since 1.8.2): same rule — process the queue off-request so no visitor pays for it.</div>
+<ul>
+<li><b>Pick the engine by volume.</b> Large media library → <b>libvips</b> (memory/speed, §4.4).</li>
+<li><b>Tune <code>OnDemandThumbLimit</code></b> (default 5): low = lighter first renders; <code>0</code> = everything via the backfill.</li>
+<li><b>Purge caches AT THE END</b> (wiki + CDN), not during.</li>
+</ul>
+<h2>5.3 Everyday use</h2>
+<ul>
+<li><b>GIF:</b> enable <code>gifsicle</code> — clear gain (−66%), negligible cost, animation preserved.</li>
+<li><b>2nd-pass PNG:</b> optional and preferably <b>oxipng</b>; keep zopflipng for an off-traffic finishing pass.</li>
+<li><b>Long HTTP cache headers</b> on <code>images_webp/</code> (and <code>images_avif/</code>): a major, often
+forgotten lever to actually cut bandwidth.</li>
+<li><b>Don't mix queue and CLI</b> on the same corpus (atomic writes = no corruption, but duplicated work).</li>
+<li><b>Permissions:</b> run scripts as the PHP user, never as <code>root</code>.</li>
+</ul>
+
+<p class="small" style="margin-top:18px; border-top:1px solid #c9d6e3; padding-top:6px;">
+Vault-Tec Media Optimizer — v1.8.2 supplement. Benchmarks measured and weighted on a test environment.
+Full guide: v1.4.1 PDF · What's new: <code>docs/NEW_FEATURES.md</code> · Changelog: <code>CHANGELOG.md</code>.</p>
+
+</body></html>

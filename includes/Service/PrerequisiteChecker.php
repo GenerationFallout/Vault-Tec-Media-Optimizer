@@ -52,6 +52,7 @@ class PrerequisiteChecker {
 			'filesystem' => $this->runFilesystemChecks(),
 			'database' => $this->runDatabaseChecks(),
 			'zopfli' => $this->runZopfliChecks(),
+			'gifsicle' => $this->runGifsicleChecks(),
 			'extensions' => $this->runExtensionChecks(),
 			'config' => $this->runConfigChecks(),
 		];
@@ -176,6 +177,25 @@ class PrerequisiteChecker {
 		} else {
 			$checks[] = $this->result( 'vaulttecmediaoptimizer-check-gd', self::STATUS_WARN, 'not installed',
 				'GD is unusual to be missing. Ensure php-gd is installed.' );
+		}
+
+		// libvips (optional engine): only relevant when selected. Probe the binary
+		// from the web PHP context so the admin sees its real usability.
+		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
+		if ( $engine === 'vips' ) {
+			$vipsPath = $this->locateBinary( 'VaultTecMediaOptimizerVipsBinary', 'vips' );
+			if ( $vipsPath !== null ) {
+				$checks[] = $this->result( 'vaulttecmediaoptimizer-check-vips',
+					self::STATUS_OK, $vipsPath, null );
+			} else {
+				$checks[] = $this->result( 'vaulttecmediaoptimizer-check-vips',
+					self::STATUS_FAIL, 'not found',
+					'Image engine "vips" is selected but the vips binary is not found or not runnable. '
+					. 'Install libvips (e.g. apt install libvips-tools), set '
+					. '$wgVaultTecMediaOptimizerVipsBinary, or switch '
+					. '$wgVaultTecMediaOptimizerImageEngine back to "auto". The extension falls back '
+					. 'to Imagick/GD meanwhile.' );
+			}
 		}
 
 		return $checks;
@@ -345,6 +365,22 @@ class PrerequisiteChecker {
 			implode( ', ', $formats ),
 			null );
 
+		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
+		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-image-engine',
+			self::STATUS_INFO,
+			$engine !== '' ? $engine : 'auto',
+			$engine === 'vips'
+				? 'Using libvips when available (faster/lighter, same WebP quality); falls back to Imagick/GD otherwise.'
+				: 'Imagick (then GD). Set $wgVaultTecMediaOptimizerImageEngine = "vips" to use libvips.' );
+
+		$useQueue = (bool)$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' );
+		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-jobqueue',
+			self::STATUS_INFO,
+			$useQueue ? 'enabled' : 'disabled',
+			$useQueue
+				? 'Uploads enqueue a background optimization job.'
+				: 'Large-wiki mode: uploads are NOT auto-optimized. Run maintenance/optimizeImages.php from the CLI. Thumbnails still get WebP on-demand at render.' );
+
 		return $checks;
 	}
 
@@ -441,6 +477,74 @@ class PrerequisiteChecker {
 
 			$checks[] = $this->result(
 				'vaulttecmediaoptimizer-check-zopfli-binary',
+				$enabled ? self::STATUS_FAIL : self::STATUS_WARN,
+				'not found',
+				$detail
+			);
+		}
+
+		return $checks;
+	}
+
+	// === Gifsicle (first-pass GIF optimization) ===
+
+	/**
+	 * Checks for the optional gifsicle feature. Purely diagnostic: gifsicle is
+	 * off by default and never required for the core WebP/optimization features.
+	 * Mirrors GifOptimizer's own availability logic, run here so the admin sees
+	 * (on the web PHP, the one that matters) whether it can actually be used.
+	 *
+	 * @return array<int, array{label_key:string,status:string,value:string,detail:?string}>
+	 */
+	private function runGifsicleChecks(): array {
+		$checks = [];
+
+		$enabled = (bool)$this->options->get( 'VaultTecMediaOptimizerGifsicleEnabled' );
+		$checks[] = $this->result(
+			'vaulttecmediaoptimizer-check-gifsicle-enabled',
+			self::STATUS_INFO,
+			$enabled ? 'true' : 'false',
+			$enabled ? null
+				: 'Optional. Set $wgVaultTecMediaOptimizerGifsicleEnabled = true; for lossless, animation-safe GIF optimization.'
+		);
+
+		// Shell execution (web PHP context).
+		$shellOk = $this->shellExecutionAvailable();
+		$checks[] = $this->result(
+			'vaulttecmediaoptimizer-check-gifsicle-shell',
+			$shellOk ? self::STATUS_OK : ( $enabled ? self::STATUS_FAIL : self::STATUS_WARN ),
+			$shellOk ? 'available' : 'disabled',
+			$shellOk ? null
+				: 'proc_open/exec are disabled in PHP (disable_functions). Required for GIF optimization.'
+		);
+
+		// Binary present and runnable.
+		$binaryPath = $this->locateBinary( 'VaultTecMediaOptimizerGifsicleBinary', 'gifsicle' );
+		if ( $binaryPath !== null ) {
+			$checks[] = $this->result(
+				'vaulttecmediaoptimizer-check-gifsicle-binary',
+				self::STATUS_OK,
+				$binaryPath,
+				null
+			);
+		} else {
+			$configured = (string)$this->options->get( 'VaultTecMediaOptimizerGifsicleBinary' );
+			if ( $configured === '' ) {
+				$configured = 'gifsicle';
+			}
+			$isAbsolute = $configured !== '' && ( $configured[0] === '/' || $configured[0] === '\\' );
+			if ( $isAbsolute && $this->isOutsideOpenBasedir( $configured ) ) {
+				$detail = "'" . $configured . "' is outside PHP's open_basedir ("
+					. ini_get( 'open_basedir' ) . "), so PHP cannot run it. "
+					. 'Copy the gifsicle binary into a directory inside open_basedir and point '
+					. '$wgVaultTecMediaOptimizerGifsicleBinary there.';
+			} else {
+				$detail = "Binary '" . $configured . "' not found or not runnable. "
+					. 'Install gifsicle (e.g. apt install gifsicle) or set the full path in '
+					. '$wgVaultTecMediaOptimizerGifsicleBinary.';
+			}
+			$checks[] = $this->result(
+				'vaulttecmediaoptimizer-check-gifsicle-binary',
 				$enabled ? self::STATUS_FAIL : self::STATUS_WARN,
 				'not found',
 				$detail

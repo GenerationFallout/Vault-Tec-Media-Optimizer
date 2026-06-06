@@ -95,6 +95,7 @@ class SpecialVTMOStatus extends SpecialPage {
 			'filesystem' => 'vaulttecmediaoptimizer-status-section-filesystem',
 			'database' => 'vaulttecmediaoptimizer-status-section-database',
 			'zopfli' => 'vaulttecmediaoptimizer-status-section-zopfli',
+			'gifsicle' => 'vaulttecmediaoptimizer-status-section-gifsicle',
 			'extensions' => 'vaulttecmediaoptimizer-status-section-extensions',
 			'config' => 'vaulttecmediaoptimizer-status-section-config',
 		];

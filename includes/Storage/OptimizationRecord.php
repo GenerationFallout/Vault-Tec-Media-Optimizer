@@ -94,19 +94,28 @@ class OptimizationRecord {
 		string $backend
 	): void {
 		$db = $this->getPrimary();
-		$db->newReplaceQueryBuilder()
-			->replaceInto( self::TABLE )
+		// Upsert rather than REPLACE: REPLACE is a DELETE+INSERT, so every column
+		// we don't list is silently reset to its schema default. We list all of
+		// them here, including explicitly clearing io_png_zopfli_size — a freshly
+		// (re)optimized original has not been second-pass recompressed yet, so it
+		// must go back to "pending zopfli". Making that explicit avoids relying on
+		// REPLACE's reset-to-default side effect.
+		$row = [
+			'io_status' => self::STATUS_COMPLETE,
+			'io_original_size' => $originalSize,
+			'io_optimized_size' => $optimizedSize,
+			'io_webp_size' => $webpSize,
+			'io_processed_at' => $db->timestamp(),
+			'io_backend' => $backend,
+			'io_error' => null,
+			'io_png_zopfli_size' => null,
+		];
+		$db->newInsertQueryBuilder()
+			->insertInto( self::TABLE )
+			->row( [ 'io_img_name' => $imgName ] + $row )
+			->onDuplicateKeyUpdate()
 			->uniqueIndexFields( [ 'io_img_name' ] )
-			->row( [
-				'io_img_name' => $imgName,
-				'io_status' => self::STATUS_COMPLETE,
-				'io_original_size' => $originalSize,
-				'io_optimized_size' => $optimizedSize,
-				'io_webp_size' => $webpSize,
-				'io_processed_at' => $db->timestamp(),
-				'io_backend' => $backend,
-				'io_error' => null,
-			] )
+			->set( $row )
 			->caller( __METHOD__ )
 			->execute();
 	}
@@ -120,15 +129,20 @@ class OptimizationRecord {
 		if ( strlen( $error ) > 65000 ) {
 			$error = substr( $error, 0, 65000 ) . '...';
 		}
-		$db->newReplaceQueryBuilder()
-			->replaceInto( self::TABLE )
+		// Upsert (not REPLACE): preserve any previously recorded sizes/backend so
+		// a later failure doesn't erase the diagnostic history of a row that had
+		// already been processed. Only status, error and timestamp change.
+		$set = [
+			'io_status' => self::STATUS_FAILED,
+			'io_processed_at' => $db->timestamp(),
+			'io_error' => $error,
+		];
+		$db->newInsertQueryBuilder()
+			->insertInto( self::TABLE )
+			->row( [ 'io_img_name' => $imgName ] + $set )
+			->onDuplicateKeyUpdate()
 			->uniqueIndexFields( [ 'io_img_name' ] )
-			->row( [
-				'io_img_name' => $imgName,
-				'io_status' => self::STATUS_FAILED,
-				'io_processed_at' => $db->timestamp(),
-				'io_error' => $error,
-			] )
+			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
 	}
@@ -138,15 +152,19 @@ class OptimizationRecord {
 	 */
 	public function markSkipped( string $imgName, string $reason ): void {
 		$db = $this->getPrimary();
-		$db->newReplaceQueryBuilder()
-			->replaceInto( self::TABLE )
+		// Upsert (not REPLACE): same rationale as markFailed() — keep any
+		// previously recorded sizes/backend instead of wiping them to NULL.
+		$set = [
+			'io_status' => self::STATUS_SKIPPED,
+			'io_processed_at' => $db->timestamp(),
+			'io_error' => $reason,
+		];
+		$db->newInsertQueryBuilder()
+			->insertInto( self::TABLE )
+			->row( [ 'io_img_name' => $imgName ] + $set )
+			->onDuplicateKeyUpdate()
 			->uniqueIndexFields( [ 'io_img_name' ] )
-			->row( [
-				'io_img_name' => $imgName,
-				'io_status' => self::STATUS_SKIPPED,
-				'io_processed_at' => $db->timestamp(),
-				'io_error' => $reason,
-			] )
+			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
 	}
@@ -316,24 +334,23 @@ class OptimizationRecord {
 			}
 		}
 
-		// Gains grouped by file format, derived from the filename extension
-		// directly in SQL (no schema change, no filesystem access).
-		$byFormat = $db->newSelectQueryBuilder()
-			->select( [
-				'ext' => 'LOWER(SUBSTRING_INDEX(io_img_name, ' . $db->addQuotes( '.' ) . ', -1))',
-				'cnt' => 'COUNT(*)',
-				'orig' => 'SUM(io_original_size)',
-				'opt' => 'SUM(io_optimized_size)',
-				'webp' => 'SUM(io_webp_size)',
-			] )
+		// Gains grouped by file format. We deliberately do NOT compute the
+		// extension in SQL: the previous SUBSTRING_INDEX() approach is
+		// MySQL/MariaDB-only — it throws on SQLite and is non-standard on
+		// PostgreSQL, which broke this entire stats page on non-MySQL backends.
+		// Instead we read the completed rows and group by extension in PHP, which
+		// is portable across every backend MediaWiki supports. Cost stays modest:
+		// we only ever scan rows that are already 'complete', the same set the
+		// aggregate queries above touch.
+		$formatRows = $db->newSelectQueryBuilder()
+			->select( [ 'io_img_name', 'io_original_size', 'io_optimized_size', 'io_webp_size' ] )
 			->from( self::TABLE )
 			->where( [ 'io_status' => self::STATUS_COMPLETE ] )
-			->groupBy( 'ext' )
 			->caller( __METHOD__ )
 			->fetchResultSet();
 
-		foreach ( $byFormat as $row ) {
-			$ext = (string)$row->ext;
+		foreach ( $formatRows as $row ) {
+			$ext = strtolower( pathinfo( (string)$row->io_img_name, PATHINFO_EXTENSION ) );
 			if ( $ext === '' ) {
 				continue;
 			}
@@ -343,10 +360,10 @@ class OptimizationRecord {
 					'count' => 0, 'original' => 0, 'optimized' => 0, 'webp' => 0,
 				];
 			}
-			$result['by_format'][$fmt]['count'] += (int)$row->cnt;
-			$result['by_format'][$fmt]['original'] += (int)$row->orig;
-			$result['by_format'][$fmt]['optimized'] += (int)$row->opt;
-			$result['by_format'][$fmt]['webp'] += (int)$row->webp;
+			$result['by_format'][$fmt]['count'] += 1;
+			$result['by_format'][$fmt]['original'] += (int)$row->io_original_size;
+			$result['by_format'][$fmt]['optimized'] += (int)$row->io_optimized_size;
+			$result['by_format'][$fmt]['webp'] += (int)$row->io_webp_size;
 		}
 
 		return $result;
@@ -384,6 +401,34 @@ class OptimizationRecord {
 			->update( self::TABLE )
 			->set( [ 'io_png_zopfli_size' => $zopfliSize ] )
 			->where( [ 'io_img_name' => $imgName ] )
+			->caller( __METHOD__ )
+			->execute();
+		$this->invalidateStatsCache();
+	}
+
+	/**
+	 * Mark a row as second-pass-processed but with no gain, without distorting
+	 * statistics.
+	 *
+	 * Sets io_png_zopfli_size equal to io_optimized_size so the backfill query
+	 * (which selects io_png_zopfli_size IS NULL) stops re-selecting the row,
+	 * while keeping SUM(COALESCE(io_png_zopfli_size, io_optimized_size)) neutral
+	 * — the second pass then contributes a 0-byte saving. A literal sentinel such
+	 * as 1 would instead make COALESCE pick 1 and massively inflate the reported
+	 * space saved. The column-to-column assignment uses RawSQLValue (a fixed
+	 * column name, never user input). If io_optimized_size is somehow NULL the
+	 * row simply stays selectable, which is harmless.
+	 *
+	 * @param string $imgName
+	 */
+	public function markPngRecompressedNoGain( string $imgName ): void {
+		$db = $this->getPrimary();
+		$optCol = new RawSQLValue( 'io_optimized_size' );
+		$db->newUpdateQueryBuilder()
+			->update( self::TABLE )
+			->set( [ 'io_png_zopfli_size' => $optCol ] )
+			->where( [ 'io_img_name' => $imgName ] )
+			->andWhere( $db->expr( 'io_png_zopfli_size', '=', null ) )
 			->caller( __METHOD__ )
 			->execute();
 		$this->invalidateStatsCache();

@@ -52,9 +52,11 @@ class ZopfliOriginalProcessor {
 	 */
 	public function processByName( string $imgName ): bool {
 		if ( !$this->zopfli->isAvailable() ) {
-			// Mark the row so we don't keep selecting it forever. We store the
-			// optimized size as the zopfli size (i.e. "no gain") to flag it as
-			// processed.
+			// Skip without marking: the row stays pending and will be retried on a
+			// later run. Jobs are only scheduled when the engine is available, so
+			// this branch is reached only if availability flips (e.g. the binary
+			// is removed) after scheduling — in which case retrying later is the
+			// right behaviour, not permanently flagging the row as processed.
 			$this->logger->debug( 'Zopfli unavailable; skipping original {name}', [ 'name' => $imgName ] );
 			return false;
 		}
@@ -123,15 +125,16 @@ class ZopfliOriginalProcessor {
 	}
 
 	/**
-	 * Mark a non-PNG (or no-gain) row as processed by storing its current
-	 * optimized size as the zopfli size, so the backfill query stops
-	 * selecting it.
+	 * Mark a non-PNG (or no-gain) row as processed so the backfill query stops
+	 * selecting it, without distorting statistics.
+	 *
+	 * Delegates to OptimizationRecord, which sets io_png_zopfli_size equal to
+	 * io_optimized_size (a 0-byte "second pass" saving). The previous
+	 * implementation stored a literal 1, which COALESCE then treated as the
+	 * file's real size and inflated the reported space saved to ~100%.
 	 */
 	private function markProcessedNoGain( string $imgName ): void {
-		// Use 0 as a sentinel is risky (NULL check), so we re-read the row's
-		// optimized size is overkill; simplest: store a non-NULL marker by
-		// using the current file size if available, else 1.
-		$this->record->markPngRecompressed( $imgName, 1 );
+		$this->record->markPngRecompressedNoGain( $imgName );
 	}
 
 	/**

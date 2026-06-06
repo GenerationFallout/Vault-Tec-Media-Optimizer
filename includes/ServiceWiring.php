@@ -8,6 +8,7 @@
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\BackfillScheduler;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\GifOptimizer;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\ImageProcessor;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PrerequisiteChecker;
@@ -40,6 +41,13 @@ return [
 				'VaultTecMediaOptimizerProcessThumbnails',
 				'VaultTecMediaOptimizerBackfillBatchSize',
 				'VaultTecMediaOptimizerMaxFileSize',
+				'VaultTecMediaOptimizerOnDemandThumbLimit',
+				'VaultTecMediaOptimizerImageEngine',
+				'VaultTecMediaOptimizerVipsBinary',
+				'VaultTecMediaOptimizerUseJobQueue',
+				'VaultTecMediaOptimizerGifsicleEnabled',
+				'VaultTecMediaOptimizerGifsicleBinary',
+				'VaultTecMediaOptimizerGifsicleLevel',
 				'UploadDirectory',
 				'UploadPath',
 			],
@@ -110,6 +118,13 @@ return [
 		);
 	},
 
+	'VaultTecMediaOptimizer.GifOptimizer' => static function ( MediaWikiServices $services ): GifOptimizer {
+		return new GifOptimizer(
+			$services->getService( 'VaultTecMediaOptimizer.Config' ),
+			LoggerFactory::getInstance( 'VaultTecMediaOptimizer' )
+		);
+	},
+
 	'VaultTecMediaOptimizer.ImageProcessor' => static function ( MediaWikiServices $services ): ImageProcessor {
 		return new ImageProcessor(
 			$services->getService( 'VaultTecMediaOptimizer.Config' ),
@@ -117,6 +132,7 @@ return [
 			$services->getService( 'VaultTecMediaOptimizer.WebPRepo' ),
 			$services->getService( 'VaultTecMediaOptimizer.OptimizationRecord' ),
 			$services->getRepoGroup(),
+			$services->getService( 'VaultTecMediaOptimizer.GifOptimizer' ),
 			LoggerFactory::getInstance( 'VaultTecMediaOptimizer' )
 		);
 	},
@@ -136,6 +152,7 @@ return [
 			$services->getService( 'VaultTecMediaOptimizer.OptimizationRecord' ),
 			$services->getConnectionProvider(),
 			$services->getJobQueueGroup(),
+			$services->getMainWANObjectCache(),
 			LoggerFactory::getInstance( 'VaultTecMediaOptimizer' )
 		);
 	},

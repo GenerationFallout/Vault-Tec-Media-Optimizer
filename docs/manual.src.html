@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Vault-Tec Media Optimizer — Documentation complète (v1.8.1, FR/EN)</title>
+<style>
+  @page { margin: 20mm 18mm 18mm 18mm; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10.8pt; color:#1a1a1a; line-height:1.5; }
+  h1.cover { color:#1f3a5f; font-size:32pt; margin:0; letter-spacing:1px; }
+  h1.cover small { display:block; color:#3a6ea5; font-size:21pt; font-weight:bold; }
+  .coverbar{ border-bottom:3px solid #2e5a86; margin:6px 0 18px; }
+  h1 { color:#1f3a5f; font-size:18pt; border-bottom:2px solid #c9d6e3; padding-bottom:5px; margin:0 0 6px; page-break-before:always; page-break-after:avoid; }
+  h1.nobreak { page-break-before:avoid; }
+  h2 { color:#2e5a86; font-size:13pt; margin-top:18px; page-break-after:avoid; }
+  h3 { color:#3a6ea5; font-size:11pt; margin-top:13px; page-break-after:avoid; }
+  p { margin: 7px 0; }
+  code,pre { font-family:"DejaVu Sans Mono",monospace; }
+  pre { font-size:8.9pt; background:#f4f6f9; border-left:3px solid #2e5a86; padding:7px 9px; white-space:pre-wrap; word-break:break-word; }
+  code { font-size:9.4pt; background:#f0f3f7; padding:0 2px; }
+  table { border-collapse:collapse; width:100%; margin:9px 0; font-size:9.3pt; }
+  th,td { border:1px solid #c9d6e3; padding:5px 7px; text-align:left; vertical-align:top; }
+  th { background:#eaf0f6; color:#1f3a5f; }
+  .box{ border:1px solid #e3c98a; background:#fcf6e8; padding:8px 12px; margin:10px 0; border-radius:3px; }
+  .box b{ color:#9a6a00; }
+  .new{ border:1px solid #9ec9a0; background:#eef7ee; padding:8px 12px; margin:10px 0; border-radius:3px; }
+  .new b{ color:#1a7f37; }
+  .good{ color:#1a7f37; font-weight:bold; } .warn{ color:#b3261e; font-weight:bold; }
+  ul,ol{ margin:6px 0; } li{ margin:3px 0; }
+  .small{ color:#666; font-size:8.7pt; }
+  .toc { font-size:10pt; } .toc li{ margin:2px 0; } .toc ul{ list-style:none; padding-left:14px; }
+  .langsep{ page-break-before: always; }
+  .chart{ width:92%; max-width:560px; display:block; margin:11px auto 2px; border:1px solid #e0e0e0; }
+  .fcap{ text-align:center; color:#666; font-size:8.4pt; margin:0 0 10px; }
+  .badge{ display:inline-block; background:#1a7f37; color:#fff; font-size:7.5pt; padding:0 5px; border-radius:8px; vertical-align:middle; }
+  .xp{ background:#8a5a00; }
+</style></head><body>
+
+<!-- ===================== COVER ===================== -->
+<div style="text-align:center; margin-top:70px;">
+  <h1 class="cover">VAULT-TEC<small>MEDIA OPTIMIZER</small></h1>
+  <div class="coverbar"></div>
+  <p style="font-style:italic; font-size:15pt; color:#444;">Documentation complète d'installation et d'administration<br>
+  <span style="font-size:11.5pt;">Complete installation &amp; administration guide</span></p>
+  <p class="small" style="font-size:10pt;"><b>Version 1.8.2</b> — Extension MediaWiki — Archives de Vault-Tec<br>
+  Document <b>bilingue FR / EN</b> · moteur libvips · GIF (gifsicle) · AVIF expérimental · dépendances · benchmarks</p>
+  <p class="small" style="margin-top:16px;"><b>FR</b> · Partie française ci-dessous &nbsp;·&nbsp; <b>EN</b> · English version follows</p>
+</div>
+
+<h1 class="langsep">Sommaire <span class="small">(version française)</span></h1>
+<div class="toc"><ul>
+<li><b>1.</b> Présentation</li>
+<li><b>2.</b> Prérequis &amp; dépendances <span class="small">— 2.5 installation des dépendances (nouveau)</span></li>
+<li><b>3.</b> Installation</li>
+<li><b>4.</b> Configuration <span class="small">— 4.6 GIF/gifsicle, 4.7 libvips, 4.8 mode gros wiki, 4.9 AVIF (nouveaux)</span></li>
+<li><b>5.</b> Architecture technique</li>
+<li><b>6.</b> Pages spéciales</li>
+<li><b>7.</b> Installation des binaires de second passage</li>
+<li><b>8.</b> Maintenance <span class="small">— 8.6 backfill en ligne de commande (nouveau)</span></li>
+<li><b>9.</b> Dépannage</li>
+<li><b>10.</b> Référence rapide</li>
+<li><b>11.</b> Foire aux questions</li>
+<li><b>12.</b> Désinstallation</li>
+<li><b>13.</b> Sécurité</li>
+<li><b>14.</b> Glossaire</li>
+<li><b>15.</b> Tutoriel pas-à-pas (de zéro à la production)</li>
+<li><b>16.</b> Benchmarks — coût / bénéfice <span class="small">(nouveau)</span></li>
+</ul></div>
+<div class="new"><b>Nouveautés depuis la v1.4.1 (jusqu'à la 1.8.1).</b> Ce manuel reprend l'intégralité de la
+documentation 1.4.1 et y intègre tout ce qui a été ajouté depuis : <b>moteur d'image libvips</b> optionnel (§4.7),
+<b>optimisation GIF sans perte</b> via <code>gifsicle</code> (§4.6), <b>mode « gros wiki »</b> en ligne de commande
+(§4.8 et §8.6), <b>AVIF expérimental</b> (§4.9), l'<b>installation des dépendances</b> (§2.5), une section
+<b>benchmarks coût/bénéfice</b> mesurés et honnêtes (§16), et les <b>correctifs 1.8.1</b> (resynchronisation des
+métadonnées après la 1ʳᵉ passe ; GIF animés jamais figés sous GD). Les éléments expérimentaux sont signalés
+<span class="badge xp">EXPÉRIMENTAL</span>, les ajouts <span class="badge">NOUVEAU</span>.</div>
+
+<h1>1. Présentation</h1>
+<p>Vault-Tec Media Optimizer est une extension MediaWiki qui réduit le poids des médias d'un wiki de deux manières
+complémentaires : elle optimise les fichiers d'origine (PNG, JPEG, GIF) de façon sans perte, et elle génère pour
+chaque image une version WebP (et, en option expérimentale, AVIF) servie automatiquement aux navigateurs via une
+balise <code>&lt;picture&gt;</code>. Les visiteurs reçoivent ainsi des images nettement plus légères sans aucune
+perte de qualité visible, ce qui accélère le chargement des pages et réduit la bande passante consommée.</p>
+<p>L'extension est conçue pour fonctionner de manière transparente : les nouveaux fichiers téléversés sont traités
+automatiquement, et un mécanisme de rattrapage (« backfill ») permet de traiter l'intégralité des fichiers déjà
+présents. Trois pages spéciales offrent un diagnostic complet, le pilotage du rattrapage et des statistiques
+détaillées.</p>
+<h2>1.1 Principe de fonctionnement</h2>
+<p>Le cœur de l'extension repose sur une distinction essentielle entre deux notions :</p>
+<ul>
+<li><b>L'original optimisé</b> : le fichier source (PNG/JPEG/GIF) est recompressé sans perte. Les pixels restent
+strictement identiques ; seule la taille du fichier sur le disque diminue. Ce gain concerne l'espace de stockage du
+serveur.</li>
+<li><b>La version WebP</b> : une copie au format WebP est générée et stockée séparément. C'est cette version,
+beaucoup plus légère, qui est envoyée aux navigateurs compatibles. Ce gain concerne la bande passante et la vitesse
+de chargement pour les visiteurs.</li>
+</ul>
+<p>La balise <code>&lt;picture&gt;</code> insérée dans le HTML permet au navigateur de choisir automatiquement :
+WebP (ou AVIF) s'il le supporte (tous les navigateurs modernes), format d'origine sinon. L'image originale reste
+donc toujours accessible, ce qui garantit la compatibilité totale et le bon fonctionnement de fonctionnalités comme
+la visionneuse multimédia.</p>
+<h2>1.2 Ce que l'extension ne fait pas</h2>
+<p>Pour éviter toute confusion, il est important de comprendre les limites volontaires de l'extension :</p>
+<ul>
+<li>Elle n'altère jamais la qualité visuelle des images d'origine (optimisation strictement sans perte pour les
+PNG ; ré-encodage à haute qualité pour les JPEG).</li>
+<li>Elle ne supprime pas les fichiers originaux : ils restent en place et accessibles.</li>
+<li>Pour les <b>GIF</b>, l'optimisation de l'original est désormais possible et <b>strictement sans perte</b> via
+<code>gifsicle</code> (§4.6), sûre pour l'animation et <b>désactivée par défaut</b>. Sans <code>gifsicle</code>,
+l'original du GIF n'est pas modifié (pour ne prendre aucun risque sur l'animation) et seule sa version WebP est
+produite — le comportement historique.</li>
+<li>Elle ne dépend d'aucun service externe ou cloud : tout le traitement se fait sur votre serveur.</li>
+</ul>
+
+<h1>2. Prérequis &amp; dépendances</h1>
+<p>L'extension nécessite un environnement répondant aux conditions suivantes. La page spéciale
+<b>VaultTec_État</b> (décrite à la section 6.1) vérifie automatiquement l'ensemble de ces prérequis et signale tout
+problème.</p>
+<h2>2.1 Versions minimales</h2>
+<table>
+<tr><th>Composant</th><th>Version requise</th></tr>
+<tr><td>MediaWiki</td><td>1.43 ou supérieur</td></tr>
+<tr><td>PHP</td><td>8.1 ou supérieur</td></tr>
+<tr><td>Bibliothèque d'images</td><td>Imagick (recommandé) ou GD, avec support WebP</td></tr>
+</table>
+<h2>2.2 Bibliothèque de traitement d'image</h2>
+<p>L'extension utilise en priorité <b>Imagick</b> (l'interface PHP vers ImageMagick), réputée plus fidèle et plus
+complète. En son absence, elle bascule automatiquement sur <b>GD</b>, présent par défaut dans la plupart des
+installations PHP. Dans les deux cas, le <b>support WebP</b> doit être activé dans la bibliothèque, sans quoi la
+génération WebP est impossible.</p>
+<div class="box"><b>Conseil.</b> Imagick est fortement recommandé. Il gère mieux la transparence des PNG, les profils
+colorimétriques et offre un contrôle plus fin de la compression (et un vrai WebP sans perte, là où GD ne fait
+qu'approximer). La page VaultTec_État indique clairement quelle bibliothèque est utilisée et si le support WebP est
+présent. <i>Voir aussi le moteur <b>libvips</b> (§4.7), alternative rapide et économe en mémoire à grande échelle.</i></div>
+<h2>2.3 Système de fichiers</h2>
+<p>L'extension lit et écrit directement sur le système de fichiers local du wiki (backend de type
+<code>FSFileBackend</code>). Elle détecte les backends non locaux (comme Amazon S3 ou OpenStack Swift) et le
+signale, car le traitement en place n'y est pas possible sans adaptation. Le répertoire de destination des fichiers
+WebP (<code>images_webp/</code> par défaut) doit être accessible en écriture par l'utilisateur sous lequel tourne
+PHP.</p>
+<h2>2.4 Mémoire et temps d'exécution PHP</h2>
+<p>Le traitement d'images volumineuses peut être gourmand. Les valeurs recommandées :</p>
+<ul>
+<li><code>memory_limit</code> : 256 Mo minimum. Une valeur de 128 Mo fonctionne pour la plupart des images mais peut
+échouer sur les très grandes. <i>Le moteur libvips réduit nettement ce besoin (§16.5).</i></li>
+<li><code>max_execution_time</code> : peu critique, car le gros du travail passe par la file de tâches (jobs)
+asynchrone et non par les requêtes web directes.</li>
+</ul>
+<h2>2.5 Installation des dépendances <span class="badge">NOUVEAU</span></h2>
+<p>L'extension fonctionne avec un minimum : une bibliothèque d'image avec support WebP. Toutes les autres
+dépendances sont <b>optionnelles</b> et n'apportent qu'un bénéfice ciblé.</p>
+<table>
+<tr><th>Dépendance</th><th>Rôle</th><th>Obligatoire ?</th></tr>
+<tr><td>Imagick <i>ou</i> GD (avec WebP)</td><td>1ʳᵉ passe + encodage WebP</td><td><b>Oui</b> (l'une des deux)</td></tr>
+<tr><td>libvips (<code>vips</code>)</td><td>Moteur rapide/léger à grande échelle (§4.7, §16)</td><td>Non — opt-in</td></tr>
+<tr><td><code>gifsicle</code></td><td>1ʳᵉ passe GIF sans perte, sûre pour l'animation (§4.6)</td><td>Non — gain GIF</td></tr>
+<tr><td><code>zopflipng</code></td><td>2ᵉ passe PNG sans perte, compression maximale (§4.4)</td><td>Non — gain disque</td></tr>
+<tr><td><code>oxipng</code></td><td>2ᵉ passe PNG sans perte, rapide (§4.4)</td><td>Non — gain disque</td></tr>
+<tr><td>libheif+AV1 / <code>imageavif()</code></td><td>AVIF expérimental (§4.9)</td><td>Non — expérimental</td></tr>
+</table>
+<pre># Debian / Ubuntu — bibliothèque d'image (l'une) + binaires optionnels
+sudo apt install php-imagick        # recommandé
+sudo apt install php-gd             # repli, souvent déjà présent
+sudo apt install gifsicle libvips-tools zopfli   # GIF + libvips + zopflipng
+# RHEL / Alma / Rocky / Fedora (EPEL)
+sudo dnf install php-imagick php-gd gifsicle vips-tools zopfli
+# oxipng : souvent pas empaqueté -> compiler (évite les soucis de glibc)
+cargo install oxipng
+sudo systemctl restart php-fpm apache2 2>/dev/null || true</pre>
+<p>Vérifiez le <b>support WebP</b> de la bibliothèque (indispensable) :</p>
+<pre>php -r 'echo extension_loaded("imagick")&amp;&amp;in_array("WEBP",Imagick::queryFormats())?"Imagick+WebP OK\n":"";'
+php -r '$i=gd_info();echo !empty($i["WebP Support"])?"GD+WebP OK\n":"GD sans WebP\n";'</pre>
+<div class="box"><b>Piège <code>open_basedir</code> (mutualisé / Plesk).</b> Si PHP est restreint, un binaire installé
+dans <code>/usr/bin</code> reste invisible côté web même s'il fonctionne en ligne de commande. <b>Règle d'or :</b>
+copiez le binaire <i>dans</i> l'arborescence du wiki (par exemple <code>httpdocs/bin/</code>), faites
+<code>chmod 755</code>, donnez-lui pour propriétaire l'utilisateur PHP, puis configurez son <b>chemin absolu</b>.
+Cette règle vaut pour <code>vips</code>, <code>gifsicle</code>, <code>zopflipng</code> et <code>oxipng</code>.</div>
+
+<h1>3. Installation</h1>
+<h2>3.1 Mise en place des fichiers</h2>
+<p>Décompressez l'archive de l'extension dans le répertoire <code>extensions/</code> de votre installation
+MediaWiki. Le dossier doit s'appeler exactement <code>VaultTecMediaOptimizer</code>, soit le chemin
+<code>extensions/VaultTecMediaOptimizer/</code>.</p>
+<div class="box"><b>Important — transfert FTP.</b> Si vous transférez les fichiers par FTP, utilisez impérativement le
+<b>mode binaire</b> et non le mode ASCII. Un transfert en mode ASCII corrompt notamment le fichier
+<code>extension.json</code> (modification des fins de ligne et de l'encodage), ce qui provoque l'erreur « is not a
+valid JSON file » au démarrage. En cas de doute, décompressez l'archive directement sur le serveur via SSH.</div>
+<h2>3.2 Activation dans LocalSettings.php</h2>
+<p>Ajoutez la ligne suivante à votre fichier <code>LocalSettings.php</code> :</p>
+<pre>wfLoadExtension( 'VaultTecMediaOptimizer' );</pre>
+<p>Les éventuels réglages personnalisés (voir section 4) doivent être placés <b>après</b> cette ligne, afin de ne
+pas être écrasés par les valeurs par défaut.</p>
+<h2>3.3 Mise à jour de la base de données</h2>
+<p>L'extension crée deux tables (<code>vtmo_image_optimization</code> et <code>vtmo_zopfli_thumb_stats</code>) et,
+lors d'une montée de version, ajoute une colonne. Exécutez le script de mise à jour de MediaWiki :</p>
+<pre>php maintenance/run.php update --quick</pre>
+<p>Sur les versions antérieures à MediaWiki 1.40, la commande équivalente est
+<code>php maintenance/update.php --quick</code>.</p>
+<div class="box"><b>Note.</b> Le script de mise à jour est idempotent : il peut être relancé sans risque. Il détecte
+ce qui existe déjà et n'applique que les changements nécessaires, qu'il s'agisse d'une installation neuve, d'une
+mise à jour depuis une version antérieure, ou d'une base déjà à jour.</div>
+<h3>3.3.1 En cas de blocage par une autre extension</h3>
+<p>Si le script <code>update.php</code> échoue à cause d'une autre extension (par exemple une extension dont le
+fichier SQL n'est pas idempotent), la migration de Vault-Tec Media Optimizer peut ne jamais être atteinte. Deux
+solutions :</p>
+<ol>
+<li>Désactiver temporairement l'extension fautive dans <code>LocalSettings.php</code>, relancer
+<code>update.php</code>, puis la réactiver.</li>
+<li>Créer manuellement les objets via SQL (à adapter au préfixe de tables si vous en utilisez un) :</li>
+</ol>
+<pre>ALTER TABLE vtmo_image_optimization
+  ADD COLUMN IF NOT EXISTS io_png_zopfli_size INT UNSIGNED DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS vtmo_zopfli_thumb_stats (
+  zts_id INT UNSIGNED NOT NULL,
+  zts_thumb_count INT UNSIGNED DEFAULT 0 NOT NULL,
+  zts_bytes_saved BIGINT UNSIGNED DEFAULT 0 NOT NULL,
+  zts_updated_at BINARY(14) DEFAULT NULL,
+  PRIMARY KEY(zts_id)
+);</pre>
+<h2>3.4 Vérification post-installation</h2>
+<p>Rendez-vous sur la page <b>Spécial:VaultTec_État</b>. Tous les contrôles doivent être au vert (ou orange pour
+les éléments optionnels non bloquants). C'est l'outil de référence pour confirmer que l'installation est saine avant
+de lancer le rattrapage.</p>
+
+<h1>4. Configuration</h1>
+<p>Tous les paramètres se définissent dans <code>LocalSettings.php</code>, après la ligne
+<code>wfLoadExtension</code>. Chaque paramètre possède une valeur par défaut raisonnable ; vous ne devez surcharger
+que ceux que vous souhaitez modifier. Le préfixe complet est <code>$wgVaultTecMediaOptimizer</code> (par exemple
+<code>$wgVaultTecMediaOptimizerEnabled</code>) ; il est abrégé en <code>…</code> dans les tableaux.</p>
+<h2>4.1 Paramètres généraux</h2>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…Enabled</code></td><td><code>true</code></td><td>Interrupteur principal. Mettre à <code>false</code> désactive entièrement l'extension.</td></tr>
+<tr><td><code>…Formats</code></td><td>png, jpeg, gif</td><td>Types MIME traités. Tableau de chaînes (<code>image/png</code>, etc.).</td></tr>
+<tr><td><code>…MaxFileSize</code></td><td>52428800</td><td>Taille maximale (en octets) d'un fichier à traiter. 50 Mio par défaut.</td></tr>
+<tr><td><code>…StripMetadata</code></td><td><code>true</code></td><td>Supprime les métadonnées non essentielles (EXIF, etc.) tout en préservant le profil colorimétrique et la transparence.</td></tr>
+</table>
+<h2>4.2 Optimisation des originaux</h2>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…OptimizeOriginals</code></td><td><code>true</code></td><td>Active la recompression des fichiers d'origine. Si <code>false</code>, seuls les WebP sont générés (les originaux ne sont pas touchés).</td></tr>
+</table>
+<p>L'optimisation des originaux dépend du type : les PNG sont recompressés strictement sans perte ; les JPEG sont
+optimisés (tables de Huffman, progressif, métadonnées retirées) mais via un ré-encodage Imagick qui n'est pas
+strictement sans perte (la qualité d'origine est préservée pour rendre la perte invisible) ; les GIF sont optimisés
+sans perte par <code>gifsicle</code> si vous l'activez (§4.6), sinon laissés intacts. Le tutoriel (section 15,
+étape 5) détaille ce point et explique comment exclure les JPEG si vous exigez une optimisation strictement sans
+perte.</p>
+<div class="box"><b>Note.</b> Désactiver <code>OptimizeOriginals</code> est utile si vous ne souhaitez pas modifier les
+fichiers d'origine sur le disque. Cela n'affecte en rien la génération WebP ni l'expérience des visiteurs, qui
+reçoivent toujours les versions WebP allégées.</div>
+<h2>4.3 Génération WebP</h2>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…WebPDirectory</code></td><td>images_webp</td><td>Répertoire (relatif à la racine du wiki) où sont stockés les fichiers WebP, séparément des originaux.</td></tr>
+<tr><td><code>…WebPQuality</code></td><td>85</td><td>Qualité WebP pour les images avec perte (JPEG). Plage conseillée : 80-90.</td></tr>
+<tr><td><code>…WebPLosslessForPng</code></td><td><code>true</code></td><td>Génère les WebP des PNG en mode sans perte, préservant la transparence.</td></tr>
+</table>
+<h2>4.4 Recompression PNG de second passage (zopflipng / oxipng)</h2>
+<p>Au-delà de l'optimisation de base, l'extension peut appliquer un second passage de recompression PNG sans perte à
+l'aide d'un outil externe. Deux moteurs sont disponibles, au choix. Ce second passage est <b>désactivé par
+défaut</b> et son seul bénéfice est un gain d'espace disque supplémentaire (de l'ordre de 8 à 20 % sur les PNG). Il
+n'améliore pas les WebP servis aux visiteurs : il n'a donc d'intérêt que si l'espace de stockage est une
+préoccupation.</p>
+<h3>4.4.1 Choix du moteur</h3>
+<ul>
+<li><b>zopflipng</b> : compression maximale, mais lent (plusieurs secondes, voire minutes, par fichier volumineux).
+Idéal si la vitesse importe peu et que l'on veut gratter les derniers pourcents.</li>
+<li><b>oxipng</b> : optimiseur multi-threadé écrit en Rust, bien plus rapide (de l'ordre de la seconde par fichier),
+pour un résultat très proche (à quelques pourcents près). Recommandé pour le traitement de masse.</li>
+</ul>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…ZopfliEnabled</code></td><td><code>false</code></td><td>Interrupteur principal du second passage, quel que soit le moteur.</td></tr>
+<tr><td><code>…PngEngine</code></td><td>zopflipng</td><td>Moteur utilisé : <code>zopflipng</code> ou <code>oxipng</code>.</td></tr>
+<tr><td><code>…ZopfliBinary</code></td><td>zopflipng</td><td>Chemin ou nom de commande du binaire zopflipng.</td></tr>
+<tr><td><code>…ZopfliIterations</code></td><td>15</td><td>Nombre d'itérations zopflipng. Plus élevé = plus petit mais plus lent.</td></tr>
+<tr><td><code>…OxipngBinary</code></td><td>oxipng</td><td>Chemin ou nom de commande du binaire oxipng.</td></tr>
+<tr><td><code>…OxipngLevel</code></td><td>2</td><td>Niveau d'optimisation oxipng (0-6 ou <code>max</code>). 2 est un bon équilibre.</td></tr>
+</table>
+<h3>4.4.2 Exemple de configuration oxipng</h3>
+<p>Configuration type pour activer oxipng (voir section 7 pour l'installation du binaire) :</p>
+<pre>$wgVaultTecMediaOptimizerZopfliEnabled = true;
+$wgVaultTecMediaOptimizerPngEngine = 'oxipng';
+$wgVaultTecMediaOptimizerOxipngBinary = '/chemin/vers/votre/wiki/bin/oxipng';</pre>
+<h2>4.5 Rattrapage (backfill)</h2>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…ProcessThumbnails</code></td><td><code>true</code></td><td>Recompresse aussi les miniatures à la volée lorsqu'elles sont générées.</td></tr>
+<tr><td><code>…BackfillBatchSize</code></td><td>20</td><td>Nombre de fichiers traités par lot lors du rattrapage via la file de tâches.</td></tr>
+<tr><td><code>…OnDemandThumbLimit</code></td><td>5</td><td>Nombre maximal de WebP de miniatures manquants générés <i>en synchrone</i> pendant un seul rendu de page (garde-fou de latence sur cache froid). <code>0</code> désactive la génération à la volée.</td></tr>
+</table>
+
+<h2>4.6 Optimisation GIF (gifsicle) <span class="badge">NOUVEAU</span></h2>
+<p>Première passe GIF <b>strictement sans perte et sûre pour l'animation</b>, via le binaire externe
+<code>gifsicle</code>. L'extension ne passe que l'option <code>-O{niveau}</code> (optimisation structurelle :
+meilleur empaquetage LZW, transparence inter-frames, cadres à boîte englobante minimale) : jamais de
+redimensionnement, jamais d'altération des pixels, de la cadence ou du compteur de boucle. Le rendu de l'animation
+est donc identique au pixel près — seule sa représentation sur disque rétrécit. Elle tourne à l'upload <b>et</b>
+pendant le rattrapage CLI ; si <code>gifsicle</code> est absent ou désactivé, c'est un no-op inoffensif (la
+génération WebP se poursuit). Un garde-fou « ne garder que si plus petit » empêche tout gonflement.</p>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…GifsicleEnabled</code></td><td><code>false</code></td><td>Active l'optimisation GIF sans perte.</td></tr>
+<tr><td><code>…GifsicleBinary</code></td><td>gifsicle</td><td>Chemin ou nom de commande du binaire.</td></tr>
+<tr><td><code>…GifsicleLevel</code></td><td>3</td><td>Niveau <code>-O</code> (1–3) ; 3 essaie le plus de stratégies.</td></tr>
+</table>
+
+<h2>4.7 Moteur libvips (optionnel) <span class="badge">NOUVEAU</span></h2>
+<p>Moteur d'image alternatif basé sur le binaire <code>vips</code> (aucune extension PHP requise). Il produit un WebP
+de <b>qualité/taille identique</b> à Imagick/GD (même bibliothèque libwebp), mais peut être <b>plus économe en
+mémoire</b>, en particulier sur les miniatures (voir §16.5 pour des mesures honnêtes). Si le binaire est inutilisable,
+l'extension <b>retombe automatiquement</b> sur Imagick/GD.</p>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…ImageEngine</code></td><td>auto</td><td><code>auto</code> (Imagick puis GD) ou <code>vips</code>.</td></tr>
+<tr><td><code>…VipsBinary</code></td><td>vips</td><td>Chemin ou nom de commande du binaire <code>vips</code>.</td></tr>
+</table>
+
+<h2>4.8 Mode « gros wiki » : file de tâches <span class="badge">NOUVEAU</span></h2>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…UseJobQueue</code></td><td><code>true</code></td><td><code>false</code> = ne plus enfiler de tâche à l'upload : on optimise alors les originaux en ligne de commande (§8.6) à son propre rythme. Les miniatures reçoivent quand même leur WebP à la demande au rendu.</td></tr>
+</table>
+
+<h2>4.9 AVIF (expérimental) <span class="badge xp">EXPÉRIMENTAL</span></h2>
+<p>Génère une copie <b>AVIF</b> en plus du WebP et la propose <i>avant</i> le WebP dans <code>&lt;picture&gt;</code>
+(les navigateurs compatibles choisissent l'AVIF, les autres retombent sur WebP puis sur l'original). Selon le
+contenu et l'encodeur, l'AVIF <i>peut</i> être plus compact que le WebP à qualité égale — mais pas toujours (sur du
+bruit ou en haute qualité il peut être plus gros). L'extension <b>compare donc l'AVIF au WebP et ne garde l'AVIF que
+s'il est strictement plus petit</b> ; sinon elle sert le WebP. L'AVIF exige un <b>encodeur AV1</b> (Imagick+libheif/
+AV1, PHP-GD <code>imageavif()</code>, ou libvips <code>heifsave</code>+AV1) ; l'extension <b>sonde réellement</b>
+cette capacité et retombe proprement sur le WebP si elle manque. Encodage lent → désactivé par défaut.</p>
+<table>
+<tr><th>Paramètre</th><th>Défaut</th><th>Description</th></tr>
+<tr><td><code>…AvifEnabled</code></td><td><code>false</code></td><td>Active la génération AVIF (en plus du WebP).</td></tr>
+<tr><td><code>…AvifDirectory</code></td><td>images_avif</td><td>Répertoire des copies AVIF (frère de <code>images/</code>).</td></tr>
+<tr><td><code>…AvifQuality</code></td><td>50</td><td>Qualité AVIF (0-100). ≈ 45-55 ≈ WebP 80-85 visuellement (le gain réel dépend du contenu et de l'encodeur). L'alpha est préservé.</td></tr>
+</table>
+
+<h1>5. Architecture technique</h1>
+<p>Cette section décrit le fonctionnement interne de l'extension. Elle s'adresse aux administrateurs techniques et
+aux développeurs souhaitant comprendre ou étendre le code.</p>
+<h2>5.1 Flux de traitement d'un fichier</h2>
+<p>Lorsqu'un fichier est téléversé ou traité par le rattrapage, les étapes sont les suivantes :</p>
+<ol>
+<li><b>Vérification</b> : le type MIME est-il dans la liste autorisée ? La taille est-elle sous la limite ? Le
+fichier est-il accessible en écriture ?</li>
+<li><b>Optimisation de l'original</b> (si activée) : recompression sans perte (PNG/JPEG ; GIF via gifsicle, §4.6).
+Garde-fou essentiel — le résultat n'écrase l'original que s'il est strictement plus petit ; sinon l'original est
+conservé intact.</li>
+<li><b>Resynchronisation des métadonnées</b> <span class="badge">1.8.1</span> : si la 1ʳᵉ passe a réellement réduit
+l'original, les métadonnées MediaWiki (<code>img_sha1</code>, <code>img_size</code>, dimensions) sont
+resynchronisées. Sans cela, la détection de doublons et l'invalidation du cache des miniatures resteraient pointées
+sur les octets d'avant optimisation.</li>
+<li><b>Génération du WebP</b> (et de l'AVIF si activé) dans le répertoire dédié.</li>
+<li><b>Enregistrement</b> : les tailles (originale, optimisée, WebP) sont consignées en base de données pour les
+statistiques.</li>
+</ol>
+<div class="box"><b>Garde-fou anti-gonflage.</b> L'optimisation écrit toujours dans un fichier temporaire et ne
+remplace l'original que si la nouvelle version est strictement plus petite. Cela garantit qu'une optimisation ne
+peut jamais, en aucun cas, augmenter la taille d'un fichier — un écueil classique lorsqu'un ré-encodage produit un
+fichier plus gros que la source (cas fréquent sur des PNG déjà optimisés par un autre outil). Les écritures sont
+<b>atomiques</b> (fichier temporaire unique + <code>rename</code>), si bien qu'un lecteur concurrent ne voit jamais
+un fichier à moitié écrit.</div>
+<h2>5.2 Diffusion via la balise picture</h2>
+<p>À l'affichage d'une page (action <i>view</i>), un hook réécrit le HTML des images pour les envelopper dans une
+balise <code>&lt;picture&gt;</code>. Celle-ci propose la source WebP (et l'AVIF avant elle si activé), avec un repli
+sur l'image d'origine. Le navigateur choisit automatiquement le meilleur format qu'il supporte. La gestion des
+écrans haute densité (Retina) est prise en compte : le <code>srcset</code> liste les différentes tailles disponibles
+(1x, 1,5x, 2x).</p>
+<div class="box"><b>Point important.</b> L'extension n'émet une source que si le fichier WebP/AVIF correspondant existe
+réellement sur le disque. C'est volontaire : contrairement à un <code>&lt;img srcset&gt;</code>, une source manquante
+dans une balise <code>&lt;picture&gt;</code> ne se replie pas automatiquement et afficherait une image cassée. Si le
+WebP d'une taille donnée n'est pas disponible, l'image d'origine est donc servie intacte, sans dégradation.
+<b>Corollaire (correctif 1.8.1)</b> : sous GD, un GIF <b>animé</b> ne reçoit pas de WebP/AVIF (GD ne décode que la
+1ʳᵉ frame) — le GIF animé d'origine est conservé pour ne jamais figer l'animation. Imagick et libvips produisent un
+WebP/AVIF animé et ne sont pas concernés.</div>
+<h2>5.3 Génération des WebP : à la création et à la demande</h2>
+<p>La couverture WebP des miniatures repose sur deux mécanismes complémentaires, ce qui garantit qu'aucune taille
+réellement utilisée ne reste sans WebP :</p>
+<ul>
+<li><b>À la création</b> : lorsqu'une miniature est générée par MediaWiki, un hook produit immédiatement sa version
+WebP. C'est le cas pour tout nouveau téléversement et toute nouvelle taille demandée pour la première fois.</li>
+<li><b>À la demande</b> : lors du rendu d'une page, si une image référence une miniature dont le WebP est absent mais
+dont la source (la miniature d'origine) existe sur le disque, l'extension génère le WebP manquant à ce moment-là,
+dans le même flux que celui qui sert déjà la page (borné par <code>OnDemandThumbLimit</code>).</li>
+</ul>
+<p>Ce double mécanisme corrige une limite structurelle : le hook de création ne se déclenche que lorsqu'une miniature
+est physiquement générée, jamais lorsqu'une miniature déjà présente sur le disque est servie telle quelle. Sans la
+génération à la demande, les miniatures créées avant l'installation de l'extension, ou les tailles que MediaWiki ne
+régénère pas (par exemple des largeurs fixes d'infobox), ne recevraient jamais de WebP.</p>
+<div class="box"><b>Performance.</b> Le tout premier rendu d'une page « froide » peut être légèrement plus lent, car il
+génère à cet instant les WebP manquants des tailles qu'elle utilise. Les rendus suivants sont instantanés (le WebP
+est en cache sur le disque). Si une génération échoue de façon répétée (par exemple un problème de droits sur le
+répertoire WebP), surveillez les journaux et vérifiez les droits du répertoire de destination.</div>
+<h2>5.4 Traitement asynchrone</h2>
+<p>Le rattrapage des fichiers existants passe par la file de tâches (JobQueue) de MediaWiki, et non par les requêtes
+web. Deux types de tâches sont définis : l'optimisation d'image standard et la recompression zopflipng/oxipng. Ce
+découplage évite de ralentir les pages et permet d'étaler la charge dans le temps. Un troisième usage : le second
+passage zopflipng des <b>miniatures</b> nouvellement générées est lui aussi confié à un job (§8.7), pour ne jamais
+ralentir le rendu. En mode « gros wiki » (§4.8), on court-circuite la file au profit du traitement CLI (§8.6).</p>
+<h2>5.5 Stockage et cache</h2>
+<p>Les données de suivi sont conservées dans la table <code>vtmo_image_optimization</code> (une ligne par fichier
+traité). Les statistiques agrégées sont mises en cache via le cache d'objets (<code>WANObjectCache</code>) avec une
+courte durée de vie, pour éviter de recalculer des sommes coûteuses à chaque consultation. Le cache est invalidé
+automatiquement à chaque écriture. Les requêtes de statistiques sont portables sur MySQL/MariaDB, SQLite et
+PostgreSQL.</p>
+
+<h1>6. Pages spéciales</h1>
+<p>L'extension fournit trois pages spéciales, accessibles aux administrateurs (droit
+<code>vaulttecmediaoptimizer-admin</code>, accordé par défaut au groupe <code>sysop</code>). Elles disposent de noms
+canoniques anglais et d'alias français.</p>
+<table>
+<tr><th>Rôle</th><th>Alias français</th><th>Nom canonique</th></tr>
+<tr><td>État / diagnostic</td><td>Spécial:VaultTec_État</td><td>Special:VTMOStatus</td></tr>
+<tr><td>Rattrapage</td><td>Spécial:VaultTec_Optimisation</td><td>Special:VTMOBackfill</td></tr>
+<tr><td>Statistiques</td><td>Spécial:VaultTec_Statistiques</td><td>Special:VTMOStats</td></tr>
+</table>
+<h2>6.1 VaultTec_État (diagnostic)</h2>
+<p>Cette page vérifie l'ensemble de l'environnement et affiche chaque contrôle avec un code couleur : vert
+(conforme), orange (avertissement non bloquant), rouge (problème bloquant), ou information neutre. Elle couvre la
+version de PHP et de MediaWiki, la mémoire, les bibliothèques d'images et leur support WebP, le <b>moteur actif</b>
+(Imagick/GD/vips) et sa sonde, le système de fichiers et les répertoires, la table de base de données, l'état du
+second passage PNG (moteur sélectionné, exécution shell, binaire), la disponibilité de <b>gifsicle</b> et de
+l'<b>AVIF/AV1</b>, la compatibilité avec d'autres extensions, et la configuration. C'est le premier endroit à
+consulter en cas de comportement anormal.</p>
+<h2>6.2 VaultTec_Optimisation (rattrapage)</h2>
+<p>Cette page pilote le traitement des fichiers déjà présents. Elle indique combien de fichiers restent à traiter et
+permet de programmer des lots dans la file de tâches. Si le second passage PNG est disponible, un bouton dédié permet
+de lancer la recompression zopflipng/oxipng des fichiers existants. Le bouton n'apparaît que si le moteur est
+correctement détecté.</p>
+<h2>6.3 VaultTec_Statistiques</h2>
+<p>Cette page présente, sous forme de tableaux, une vue d'ensemble des gains réalisés par l'extension. Toutes les
+valeurs sont calculées à partir des tailles réellement mesurées sur le disque (avant / après chaque étape).</p>
+<h3>6.3.1 Les trois mesures de gain</h3>
+<p>Un fichier passe par jusqu'à trois états : la taille à laquelle il a été traité pour la première fois par
+l'extension, sa taille après le premier passage (optimisation à l'upload), et sa taille après le second passage
+(oxipng/zopflipng). La page affiche donc trois mesures complémentaires plutôt qu'un seul chiffre :</p>
+<ul>
+<li><b>Espace total économisé</b> : de l'état initial au fichier réel actuel. C'est le chiffre le plus représentatif
+du gain global.</li>
+<li><b>Espace économisé (1ᵉʳ passage)</b> : ce qu'a gagné l'optimisation au moment de l'upload.</li>
+<li><b>Espace économisé (2ⁿᵈ passage)</b> : ce qu'a gagné en plus la recompression oxipng/zopflipng (n'apparaît que
+si un second passage a eu lieu).</li>
+</ul>
+<div class="box"><b>Gain faible si les fichiers étaient déjà optimisés.</b> La taille « de départ » enregistrée est
+celle du fichier lorsque l'extension l'a traité pour la première fois, et non la photo brute d'origine. Si vos
+fichiers ont déjà été optimisés auparavant, il ne reste que peu à gagner, et le pourcentage « originaux » sera
+naturellement faible. Ce n'est pas une contre-performance : cela signifie simplement que vos fichiers étaient déjà
+propres. Le gain brut depuis l'image jamais optimisée ne peut pas être reconstitué, car cette taille n'est conservée
+nulle part.</div>
+<h3>6.3.2 Bilan de l'espace disque</h3>
+<p>Cette section répond à une question essentielle et souvent mal comprise : l'extension fait-elle gagner ou perdre
+de l'espace disque ? Elle additionne l'espace gagné en optimisant les originaux, puis en soustrait l'espace occupé
+par les fichiers WebP générés (un par image, en plus de l'original). Le résultat net est presque toujours négatif :
+les WebP pèsent davantage que ce qui est gratté sur les originaux.</p>
+<div class="box"><b>Le WebP coûte du disque, mais économise de la bande passante.</b> Il est normal et attendu que le
+bilan disque soit négatif. Le but du WebP n'est pas d'économiser du stockage serveur, mais de réduire le poids des
+images envoyées aux visiteurs (bande passante). L'extension échange donc un peu d'espace disque (relativement peu
+coûteux) contre une économie de bande passante (le vrai bénéfice). Voir le §16 pour un chiffrage mesuré et honnête.</div>
+<h3>6.3.3 Bande passante économisée par page (estimation)</h3>
+<p>Cette section illustre l'économie de bande passante sur une page-type. Une page de wiki affiche des miniatures
+(et non les originaux en pleine taille) : la simulation suppose un nombre fixe de miniatures par page, d'une taille
+de référence, et applique le taux de réduction WebP moyen réellement observé sur le wiki. Les hypothèses sont
+affichées explicitement.</p>
+<div class="box"><b>Estimation, pas mesure.</b> L'extension ne suit pas les consultations réelles. Le <b>pourcentage</b>
+de réduction est fiable (il vient des tailles réelles), mais le <b>volume absolu</b> dépend du nombre et de la taille
+des images réellement affichées, ainsi que des caches navigateur et CDN qui réduisent fortement le trafic effectif.
+Considérez ce chiffre comme un ordre de grandeur, non comme une facture (cf. §16).</div>
+<h3>6.3.4 Autres sections</h3>
+<p>La page présente également les taux de compression (originaux sans perte et versions WebP), une répartition par
+format (PNG, JPEG, GIF), une section dédiée au second passage PNG (espace récupéré, nombre d'originaux et de
+miniatures recompressés), une répartition par moteur de traitement, et la liste des éventuels fichiers en échec.</p>
+<div class="box"><b>Lecture des statistiques pendant un traitement.</b> Lorsqu'un rattrapage ou une réparation est en
+cours, les chiffres évoluent à chaque rafraîchissement et ne deviennent définitifs qu'une fois le traitement terminé
+(la ligne « Progression des originaux » atteint 100 %). Il est normal de voir certains pourcentages évoluer, voire
+être temporairement négatifs si des données antérieures sont encore en cours de correction.</div>
+
+<h1>7. Installation des binaires de second passage</h1>
+<p>Le second passage PNG (section 4.4) requiert l'installation d'un binaire externe : zopflipng ou oxipng. Cette
+section détaille leur mise en place, en tenant compte d'un piège fréquent sur les hébergements mutualisés.</p>
+<h2>7.1 Le piège open_basedir</h2>
+<p>De nombreux hébergements (notamment sous Plesk) restreignent les chemins que PHP peut lire et exécuter via la
+directive <code>open_basedir</code>. Typiquement, PHP n'a accès qu'au répertoire du site (par exemple
+<code>/var/www/vhosts/votre-site/</code>) et à <code>/tmp/</code>, mais pas à <code>/usr/bin/</code>. Conséquence :
+même si un binaire est installé dans <code>/usr/bin/</code> et fonctionne parfaitement en ligne de commande, PHP ne
+pourra ni le voir ni l'exécuter depuis le contexte web. C'est une cause d'erreur très courante et déroutante, car le
+binaire « existe » mais reste inutilisable par l'extension.</p>
+<div class="box"><b>Règle d'or.</b> Placez toujours le binaire de recompression à l'intérieur de l'arborescence du wiki
+(par exemple dans un sous-dossier <code>bin/</code>), de sorte qu'il soit couvert par <code>open_basedir</code>.
+Configurez ensuite le <b>chemin absolu complet</b> vers ce binaire, et non un simple nom de commande.</div>
+<h2>7.2 Installation d'oxipng (recommandé)</h2>
+<p>oxipng est distribué sous forme de binaire précompilé. Attention toutefois : les binaires génériques téléchargés
+depuis les dépôts publics peuvent exiger une version de la bibliothèque système (glibc) plus récente que celle de
+votre serveur, provoquant une erreur du type « GLIBC_2.34 not found ». La méthode la plus fiable est alors de
+compiler oxipng sur la machine elle-même (via l'outil <code>cargo</code> de Rust), puis de copier le binaire obtenu
+dans l'arborescence du wiki.</p>
+<h3>7.2.1 Mise en place du binaire</h3>
+<p>Une fois oxipng disponible, copiez-le dans un dossier <code>bin/</code> du wiki et donnez-lui les bons droits.
+L'utilisateur propriétaire doit correspondre à celui qui exécute PHP (souvent un compte dédié sous Plesk) :</p>
+<pre>mkdir -p /chemin/vers/wiki/httpdocs/bin
+cp /source/oxipng /chemin/vers/wiki/httpdocs/bin/oxipng
+chmod 755 /chemin/vers/wiki/httpdocs/bin/oxipng
+# Ajuster propriétaire:groupe selon votre hébergement
+chown utilisateur:groupe /chemin/vers/wiki/httpdocs/bin/oxipng</pre>
+<p>Vérifiez ensuite que le binaire répond, en tant qu'utilisateur du wiki :</p>
+<pre>/chemin/vers/wiki/httpdocs/bin/oxipng --version</pre>
+<h3>7.2.2 Configuration</h3>
+<p>Renseignez le chemin absolu dans <code>LocalSettings.php</code> (et non le nom <code>oxipng</code> seul) :</p>
+<pre>$wgVaultTecMediaOptimizerZopfliEnabled = true;
+$wgVaultTecMediaOptimizerPngEngine = 'oxipng';
+$wgVaultTecMediaOptimizerOxipngBinary = '/chemin/vers/wiki/httpdocs/bin/oxipng';</pre>
+<p>Rechargez ensuite Spécial:VaultTec_État : la ligne « Binaire » de la section recompression PNG doit passer au vert
+avec le chemin affiché.</p>
+<h2>7.3 Vérifier l'exécution shell côté web</h2>
+<p>L'extension a besoin que PHP puisse lancer des processus externes (fonctions <code>proc_open</code> ou
+<code>exec</code>). Si ces fonctions figurent dans la directive <code>disable_functions</code> de PHP, le second
+passage (ainsi que gifsicle et vips) est impossible. La page VaultTec_État indique l'état de l'exécution shell dans
+le contexte web — c'est ce contexte qui compte, et il peut différer de la ligne de commande. En cas de blocage côté
+web seulement, retirez <code>proc_open</code> et <code>exec</code> de <code>disable_functions</code> dans les réglages
+PHP (par exemple via le panneau Plesk).</p>
+
+<h1>8. Maintenance</h1>
+<h2>8.1 Lancer le rattrapage initial</h2>
+<p>Après l'installation, les fichiers déjà présents ne sont pas encore traités. Lancez le rattrapage depuis
+<b>Spécial:VaultTec_Optimisation</b>, qui programme les lots dans la file de tâches de MediaWiki.</p>
+<div class="box"><b>Important — préférez la ligne de commande pour les gros volumes.</b> La page spéciale ne traite pas
+les fichiers directement : elle planifie des tâches dans la file de jobs. Par défaut, MediaWiki exécute ces tâches à
+la fin des requêtes des visiteurs (paramètre <code>$wgJobRunRate</code>). Comme chaque tâche d'optimisation lance un
+outil externe qui consomme du temps processeur, la requête du visiteur attend la fin de la tâche avant de rendre la
+main : le wiki paraît alors ralenti, alors que ce sont en réalité vos visiteurs qui exécutent le traitement à votre
+place. Pour un rattrapage ou une recompression de masse, lancez plutôt le traitement en ligne de commande (SSH), dans
+un processus séparé qui n'impacte pas les visiteurs.</div>
+<p>Deux approches propres pour un gros volume : (1) le plus simple, utiliser les scripts de maintenance en SSH dans un
+<code>screen</code> (ils tournent dans un processus isolé) ; (2) si vous tenez à passer par la file, désactivez son
+exécution sur les requêtes web le temps du traitement avec <code>$wgJobRunRate = 0;</code>, puis videz la file
+vous-même en SSH avec <code>runJobs.php</code>.</p>
+<pre>screen -S vtmo-jobs
+php maintenance/run.php runJobs.php --type VaultTecMediaOptimizerOptimizeImage</pre>
+<div class="box"><b>Le réglage <code>$wgJobRunRate</code>.</b> Augmenter <code>$wgJobRunRate</code> (comme le suggèrent
+certains messages génériques de MediaWiki) <b>aggrave</b> le ralentissement pour les visiteurs au lieu de l'atténuer,
+puisque davantage de tâches lourdes s'exécutent sur leurs requêtes. Pour des traitements lourds, la bonne valeur est
+<b>0</b> (aucune tâche sur les requêtes web), combinée à un <code>runJobs.php</code> lancé en SSH, ou tout simplement
+les scripts de maintenance dédiés (§8.6).</div>
+<h2>8.2 Réparer des originaux indûment gonflés</h2>
+<p>Un script de maintenance dédié, <code>repairBloatedOriginals.php</code>, permet de réparer des fichiers dont la
+version « optimisée » serait, à la suite d'un défaut historique, plus grosse que l'original. Il recompresse chaque
+fichier concerné avec le moteur PNG configuré (oxipng recommandé pour la rapidité), corrige les tailles enregistrées
+en base afin que les statistiques redeviennent cohérentes, et resynchronise les métadonnées de MediaWiki. Commencez
+toujours par un essai à vide (<code>--dry-run</code>), qui liste les fichiers concernés sans rien modifier :</p>
+<pre>php maintenance/run.php .../repairBloatedOriginals.php --dry-run
+php maintenance/run.php .../repairBloatedOriginals.php --max=20    # valider le rythme
+php maintenance/run.php .../repairBloatedOriginals.php             # tout (dans un screen)</pre>
+<div class="box"><b>Astuce — chemin du script.</b> Si l'invocation par chemin relatif échoue (« Script not found »),
+utilisez le <b>chemin absolu</b> vers le script. Lancez toujours le script via <code>maintenance/run.php</code>, et
+non en l'exécutant directement, conformément aux recommandations de MediaWiki.</div>
+<p>Le script est relançable sans risque : il ne reprend que les fichiers encore concernés et ignore ceux déjà
+réparés. Pour un gros volume, lancez-le dans un <code>screen</code> ou <code>tmux</code> afin qu'il survive à une
+déconnexion.</p>
+<h2>8.3 Recompresser avec un second moteur (oxipng puis zopflipng)</h2>
+<p>Il est possible d'obtenir la meilleure compression PNG possible en traitant d'abord tous les fichiers avec oxipng
+(rapide), puis en repassant avec zopflipng (plus lent, mais DEFLATE plus dense) pour grappiller les derniers
+pourcents. Le script <code>recompressOriginals.php</code> est prévu pour cela.</p>
+<div class="box"><b>À comprendre avant tout.</b> Le PNG étant un format sans perte, chaque moteur ré-encode l'image à
+partir des pixels décodés. Enchaîner oxipng puis zopflipng ne cumule donc <b>pas</b> les gains des deux : le résultat
+final est déterminé par le dernier moteur qui écrit. Concrètement, « oxipng puis zopflipng » donne le même résultat
+que « zopflipng seul ». L'intérêt de l'enchaînement n'est pas d'additionner les gains, mais de dégonfler vite le gros
+du stock avec oxipng, puis de ne lancer le moteur lent que pour la finition. Une protection intégrée ne conserve la
+sortie du second moteur que si elle est réellement plus petite : un fichier n'est jamais agrandi.</div>
+<h3>8.3.1 Premier puis second passage</h3>
+<p>Avec le moteur configuré (par exemple oxipng), traitez tous les PNG qui n'ont pas encore subi le second passage.
+Utilisez le <b>chemin absolu</b> du script (et de <code>run.php</code>) pour éviter l'erreur « Script not found » :</p>
+<pre># 1er passage (moteur configuré, ex. oxipng)
+/opt/plesk/php/8.4/bin/php /abs/wiki/maintenance/run.php \
+  /abs/wiki/extensions/VaultTecMediaOptimizer/maintenance/recompressOriginals.php
+# 2e passage : passer PngEngine = 'zopflipng' dans LocalSettings, puis :
+... recompressOriginals.php --reset</pre>
+<p>L'option <code>--reset</code> remet les PNG déjà traités à l'état « à faire » pour que le nouveau moteur les
+reprenne. <code>--dry-run</code> prévisualise, <code>--max=N</code> limite le nombre de fichiers. Comme zopflipng est
+lent, lancez ce second passage dans un <code>screen</code>.</p>
+<h3>8.3.2 Cas des miniatures</h3>
+<p>Ce script ne traite que les originaux. Les miniatures sont recompressées automatiquement par MediaWiki au moment
+où elles sont (re)générées, via un hook. Pour qu'un nouveau moteur s'applique aux miniatures existantes, il faut donc
+les purger pour forcer leur régénération. Il n'existe volontairement pas de re-parcours en masse des miniatures, car
+l'énumération fiable des miniatures sur disque est fragile et dépend de la configuration.</p>
+<h2>8.4 Purge du cache après modification des messages</h2>
+<p>Si vous modifiez les fichiers de traduction (i18n), pensez à reconstruire le cache de localisation :</p>
+<pre>php maintenance/run.php rebuildLocalisationCache --force</pre>
+<h2>8.5 En-têtes de cache HTTP (recommandation)</h2>
+<p>Pour tirer pleinement parti des WebP générés, configurez votre serveur web afin que les fichiers WebP (et AVIF)
+soient mis en cache longuement par les navigateurs — par exemple, sous Apache, en appliquant un en-tête
+<code>Cache-Control</code> à durée longue sur les fichiers <code>.webp</code> du répertoire <code>images_webp/</code>.
+C'est un levier important et souvent négligé pour réduire la bande passante (voir §16).</p>
+<h2>8.6 Backfill en ligne de commande — <code>optimizeImages.php</code> <span class="badge">NOUVEAU</span></h2>
+<p>Pour les gros wikis, un script dédié réalise le rattrapage <b>directement en ligne de commande</b> (1ʳᵉ passe +
+WebP) <b>sans passer par la file de tâches</b> — idéal pour ne pas impacter les visiteurs. Il honore le moteur
+configuré (vips inclus). Combinez-le avec le mode gros wiki (§4.8) :</p>
+<pre>// LocalSettings.php (mode gros wiki)
+$wgVaultTecMediaOptimizerUseJobQueue = false;</pre>
+<pre>screen -S vtmo
+php maintenance/run.php .../optimizeImages.php --dry-run          # aperçu sans rien modifier
+php maintenance/run.php .../optimizeImages.php --batch=200         # traiter par lots
+php maintenance/run.php .../optimizeImages.php --format=gif        # restreindre à un format
+php maintenance/run.php .../optimizeImages.php --start=Foo.png --max=500 --force</pre>
+<p>Options : <code>--dry-run</code>, <code>--batch</code>, <code>--max</code>, <code>--start</code>,
+<code>--force</code>, <code>--format</code> (sous-ensemble des formats configurés, intersecté avec
+<code>…Formats</code>), <code>--purge-queue</code>. Le script <code>purgeQueue.php</code> vide la file Optimisation
+(et, avec <code>--include-zopfli</code>, la file du second passage) ; <code>--dry-run</code> compte sans supprimer.</p>
+<div class="box"><b>Une seule voie à la fois</b> pour un même corpus : soit le rattrapage par la file
+(<code>runJobs.php</code>), soit le CLI (<code>optimizeImages.php</code>). Ne lancez pas les deux en même temps sur le
+même stock : les écritures sont atomiques (pas de corruption), mais vous feriez du travail en double. Utilisez
+<code>--purge-queue</code> au besoin.</div>
+
+<h2>8.7 Le second passage des miniatures : un job, à traiter hors-ligne <span class="badge">NOUVEAU</span></h2>
+<p>Quand MediaWiki génère une nouvelle miniature PNG, l'extension produit immédiatement son WebP (rapide,
+&lt; 50 ms). En revanche, le <b>second passage zopflipng</b> sur cette miniature — purement un gain de disque —
+coûte <b>plusieurs secondes par fichier</b> (≈ 14 s, cf. §16). Le lancer pendant le rendu ferait payer ce temps
+au <b>visiteur</b> : une galerie de 30 PNG en cache froid pourrait ajouter des <b>minutes</b> à l'affichage d'une
+page. C'est pourquoi ce second passage n'est <b>pas</b> exécuté en ligne : il est confié à un <b>job</b>
+(<code>VaultTecMediaOptimizerThumbnailRecompress</code>) qui recompresse la miniature stockée en arrière-plan.</p>
+<div class="box"><b>Pourquoi la génération via la ligne de commande est meilleure.</b> Un job n'est utile que
+s'il est traité <b>hors des requêtes des visiteurs</b>. Par défaut, MediaWiki exécute la file en fin de requête
+(<code>$wgJobRunRate</code>) : le traitement lourd retombe alors sur un visiteur. La bonne configuration est
+<code>$wgJobRunRate = 0;</code> + un <code>runJobs.php</code> lancé en <b>SSH/cron</b> (ou le backfill CLI
+<code>optimizeImages.php</code>, §8.6). Ainsi tout l'encodage lourd s'exécute sur un processus serveur dédié,
+<b>jamais sur le temps de réponse d'un visiteur</b> — c'est la même règle que pour l'optimisation des originaux
+(§8.1). En <b>mode gros wiki</b> (<code>UseJobQueue = false</code>, §4.8), ce job n'est pas enfilé du tout :
+l'administrateur recompresse les miniatures à son rythme.</div>
+
+<h1>9. Dépannage</h1>
+<h2>9.1 « is not a valid JSON file » au démarrage</h2>
+<p><b>Cause</b> : le fichier <code>extension.json</code> a été corrompu, le plus souvent par un transfert FTP en mode
+ASCII. <b>Solution</b> : re-transférez le fichier en mode binaire, ou décompressez l'archive directement sur le
+serveur. Vous pouvez vérifier la validité côté serveur et comparer la taille du fichier à celle de l'archive
+d'origine.</p>
+<h2>9.2 La page de statistiques affiche une erreur de colonne inconnue</h2>
+<p><b>Cause</b> : la migration de base de données n'a pas été appliquée (colonne ou table manquante).
+<b>Solution</b> : exécutez <code>update.php</code> (section 3.3). Si une autre extension bloque l'updater, appliquez
+la migration manuellement (section 3.3.1).</p>
+<h2>9.3 Le binaire de recompression est introuvable (alors qu'il existe)</h2>
+<p>Cause la plus fréquente : <code>open_basedir</code> empêche PHP d'accéder au binaire situé hors de l'arborescence
+autorisée (typiquement dans <code>/usr/bin/</code>). Solution : copiez le binaire dans un dossier du wiki et
+configurez son chemin absolu (section 7). La page VaultTec_État affiche un message spécifique lorsqu'elle détecte ce
+cas. Autre cause : la mauvaise variable de configuration a été renseignée (avec oxipng, c'est
+<code>…OxipngBinary</code>, et non la variable zopfli) ; vérifiez aussi la casse exacte du nom. Erreur « GLIBC not
+found » : le binaire précompilé exige une glibc plus récente que celle du serveur — compilez-le sur la machine.</p>
+<h2>9.4 La recompression est très lente</h2>
+<p>Cause : le moteur zopflipng est intrinsèquement lent, surtout avec un nombre d'itérations élevé sur de gros
+fichiers. Solution : passez au moteur oxipng (<code>…PngEngine = 'oxipng'</code>), nettement plus rapide. À défaut,
+réduisez le nombre d'itérations zopflipng (par exemple à 5). Le résultat final en taille est très proche, pour un
+temps de traitement bien moindre (voir §16).</p>
+<h2>9.5 Les statistiques semblent incohérentes pendant un traitement</h2>
+<p>C'est normal : pendant un rattrapage ou une réparation, les valeurs évoluent à chaque rafraîchissement. Attendez la
+fin du traitement (« Progression » à 100 %) avant d'interpréter les chiffres. Par ailleurs, le total WebP affiché
+peut fluctuer temporairement, car la resynchronisation des métadonnées invalide certaines miniatures, qui sont
+ensuite régénérées.</p>
+<h2>9.6 Une image reste servie en PNG/JPEG plutôt qu'en WebP</h2>
+<p>Rechargez la page une fois (le premier rendu génère les WebP manquants), puis rechargez de nouveau. Vérifiez les
+droits d'écriture du répertoire WebP et que <code>OnDemandThumbLimit</code> &gt; 0. Pour un <b>GIF animé sous GD</b>,
+l'absence de WebP est <b>voulue</b> (§5.2) afin de ne pas figer l'animation.</p>
+<h2>9.7 Droits sur les fichiers</h2>
+<p>Si vous lancez un script de maintenance, faites-le sous l'utilisateur qui exécute PHP (souvent le même que le
+serveur web), et non en tant que <code>root</code>. Lancer un traitement en root crée des fichiers appartenant à
+root, que PHP ne pourra plus écraser ensuite — source de conflits de droits lors des téléversements suivants.</p>
+
+<h1>10. Référence rapide</h1>
+<h2>10.1 Tables de base de données</h2>
+<table>
+<tr><th>Table</th><th>Rôle</th></tr>
+<tr><td><code>vtmo_image_optimization</code></td><td>Une ligne par fichier traité : tailles originale/optimisée/WebP, statut, etc.</td></tr>
+<tr><td><code>vtmo_zopfli_thumb_stats</code></td><td>Statistiques agrégées des gains de recompression sur les miniatures.</td></tr>
+</table>
+<h2>10.2 Droit d'accès</h2>
+<p>Les trois pages spéciales requièrent le droit <code>vaulttecmediaoptimizer-admin</code>, accordé par défaut au
+groupe <code>sysop</code> (administrateurs).</p>
+<h2>10.3 Scripts de maintenance</h2>
+<table>
+<tr><th>Script</th><th>Rôle et options</th></tr>
+<tr><td><code>optimizeImages.php</code> <span class="badge">NOUVEAU</span></td><td>Backfill CLI (1ʳᵉ passe + WebP) sans la file ; <code>--dry-run</code>, <code>--batch</code>, <code>--max</code>, <code>--start</code>, <code>--force</code>, <code>--format</code>, <code>--purge-queue</code>.</td></tr>
+<tr><td><code>purgeQueue.php</code> <span class="badge">NOUVEAU</span></td><td>Vide la file Optimisation (<code>--include-zopfli</code> pour le 2ᵉ passage) ; <code>--dry-run</code>.</td></tr>
+<tr><td><code>recompressOriginals.php</code></td><td>Recompresse les PNG originaux avec le moteur configuré ; <code>--reset</code> pour repasser un autre moteur, <code>--dry-run</code>, <code>--max</code>, <code>--batch</code>.</td></tr>
+<tr><td><code>repairBloatedOriginals.php</code></td><td>Répare les originaux gonflés ; <code>--dry-run</code>, <code>--max</code>, <code>--batch</code>.</td></tr>
+</table>
+
+<h1>11. Foire aux questions</h1>
+<p><b>L'extension modifie-t-elle la qualité de mes images ?</b><br>Non pour les originaux : l'optimisation PNG est
+strictement sans perte (les pixels sont identiques), et les WebP de PNG sont générés en mode sans perte par défaut.
+Les JPEG sont ré-encodés à haute qualité (85 par défaut), ce qui est visuellement indistinguable de l'original dans
+l'immense majorité des cas. Vous pouvez ajuster la qualité WebP via <code>…WebPQuality</code>.</p>
+<p><b>Que voient les visiteurs dont le navigateur ne supporte pas le WebP ?</b><br>Ils reçoivent l'image d'origine,
+intacte. La balise <code>&lt;picture&gt;</code> propose le WebP en premier mais conserve toujours la balise
+<code>&lt;img&gt;</code> d'origine en repli. Tous les navigateurs récents supportent le WebP ; le repli ne concerne
+que des navigateurs très anciens.</p>
+<p><b>Dois-je activer le second passage (zopflipng/oxipng) ?</b><br>Ce n'est pas obligatoire. Le bénéfice principal
+pour les visiteurs (les WebP allégés) fonctionne sans lui. Le second passage n'apporte qu'un gain d'espace disque
+supplémentaire sur les PNG. Activez-le si le stockage serveur est une préoccupation ; sinon, laissez-le désactivé.</p>
+<p><b>Quelle différence entre zopflipng et oxipng ?</b><br>Les deux recompressent les PNG sans perte. zopflipng
+compresse un peu plus mais est très lent ; oxipng est beaucoup plus rapide pour un résultat à quelques pourcents
+près. Pour du traitement de masse, oxipng est recommandé.</p>
+<p><b>Puis-je changer de moteur après coup ?</b><br>Oui. Modifiez <code>…PngEngine</code> à tout moment. Les fichiers
+déjà traités ne sont pas re-traités automatiquement, mais tout nouveau traitement (ou une réparation) utilisera le
+nouveau moteur.</p>
+<p><b>Les images GIF animées sont-elles préservées ?</b><br>Oui. L'optimisation <code>gifsicle</code> (§4.6) est
+strictement sans perte et sûre pour l'animation ; et sous GD, les GIF animés ne reçoivent jamais de WebP/AVIF figé
+(§5.2). Sans gifsicle, l'original du GIF n'est pas touché du tout.</p>
+<p><b>Combien d'espace vais-je gagner ?</b><br>Cela dépend entièrement de votre médiathèque. Côté visiteurs, le WebP
+réduit souvent le poids des images servies de 25 à 50 % (voir §16 pour un chiffrage honnête au niveau des
+miniatures). Le gain d'espace disque sur les originaux est plus modeste et dépend de l'état de compression initial.</p>
+<p><b>L'extension fonctionne-t-elle avec un stockage cloud (S3, Swift) ?</b><br>L'extension est conçue pour un système
+de fichiers local (<code>FSFileBackend</code>). Elle détecte les backends non locaux et le signale sur la page
+d'état. Un fonctionnement sur stockage objet n'est pas pris en charge en l'état.</p>
+<p><b>Une image apparaît cassée après traitement. Que faire ?</b><br>C'est très rare grâce au garde-fou anti-gonflage
+et au repli <code>&lt;img&gt;</code>. Si cela arrive, vérifiez d'abord en accédant directement à l'URL de la
+miniature (elle doit renvoyer l'image avec un type <code>image/png</code> ou équivalent). Consultez ensuite les
+journaux et la section 9. Le fichier d'origine n'étant jamais supprimé, aucune donnée n'est perdue.</p>
+
+<h1>12. Désinstallation</h1>
+<p>L'extension est conçue pour être retirée proprement, sans laisser le wiki dans un état dégradé. Suivez ces
+étapes :</p>
+<ol>
+<li><b>Désactiver l'extension</b> : retirez (ou commentez) la ligne <code>wfLoadExtension( 'VaultTecMediaOptimizer' );</code>
+dans <code>LocalSettings.php</code>, ainsi que tous les réglages <code>$wgVaultTecMediaOptimizer*</code>.</li>
+<li><b>Purger le cache des pages</b> : les pages cesseront alors d'afficher les balises <code>&lt;picture&gt;</code> et
+reviendront aux balises <code>&lt;img&gt;</code> standards pointant vers les originaux. Les originaux étant intacts,
+les images s'affichent normalement.</li>
+<li><b>(Optionnel) Supprimer les fichiers WebP</b> : le répertoire <code>images_webp/</code> (et
+<code>images_avif/</code>) peut être supprimé pour récupérer l'espace. Il n'est plus utilisé une fois l'extension
+désactivée.</li>
+<li><b>(Optionnel) Supprimer les tables</b> : si vous ne comptez pas réinstaller l'extension, les tables
+<code>vtmo_image_optimization</code> et <code>vtmo_zopfli_thumb_stats</code> peuvent être supprimées. Retirez aussi
+le dossier de l'extension et les binaires installés.</li>
+</ol>
+<div class="box"><b>Important.</b> Les images d'origine ne sont jamais supprimées par l'extension. Après
+désinstallation, votre médiathèque reste complète et fonctionnelle. Seules les versions WebP/AVIF (régénérables)
+disparaissent.</div>
+<pre>DROP TABLE IF EXISTS vtmo_zopfli_thumb_stats;
+DROP TABLE IF EXISTS vtmo_image_optimization;</pre>
+
+<h1>13. Sécurité</h1>
+<p>Cette section décrit les considérations de sécurité prises en compte par l'extension.</p>
+<h2>13.1 Exécution de binaires externes</h2>
+<p>Les binaires externes (gifsicle, zopflipng, oxipng, vips) sont appelés via les fonctions PHP <code>proc_open</code>
+ou <code>exec</code>. Les arguments sont transmis sous forme de <b>tableau</b> (et non d'une chaîne shell
+concaténée), ce qui évite toute interprétation par le shell et donc tout risque d'injection de commande. Les chemins
+de binaires proviennent exclusivement de la configuration de l'administrateur, jamais d'une entrée utilisateur.</p>
+<h2>13.2 Protection contre la traversée de répertoires</h2>
+<p>La génération de WebP à la demande lit le fichier source d'une miniature et écrit le WebP correspondant. Pour
+empêcher qu'un nom de fichier malveillant ne fasse sortir ces opérations de l'arborescence des médias, l'extension
+rejette tout nom contenant une séquence de traversée (<code>..</code>), un séparateur de chemin (<code>/</code> ou
+<code>\</code>) ou un octet nul. Les noms de fichiers MediaWiki légitimes ne contiennent jamais ces caractères.</p>
+<h2>13.3 Restriction aux types autorisés</h2>
+<p>Le traitement (optimisation, WebP) est strictement limité aux types MIME configurés (<code>image/png</code>,
+<code>image/jpeg</code>, <code>image/gif</code> par défaut). Tout autre type de fichier est ignoré. La taille maximale
+traitée est également plafonnée par <code>…MaxFileSize</code>.</p>
+<h2>13.4 Droits d'accès</h2>
+<p>Les trois pages spéciales (état, rattrapage, statistiques) sont réservées aux utilisateurs disposant du droit
+<code>vaulttecmediaoptimizer-admin</code>, accordé par défaut au seul groupe <code>sysop</code>. Les actions sensibles
+(lancement de rattrapage, recompression) ne sont donc pas accessibles aux utilisateurs ordinaires.</p>
+<h2>13.5 Innocuité des balises générées</h2>
+<p>La réécriture HTML se contente d'envelopper les balises <code>&lt;img&gt;</code> existantes dans une balise
+<code>&lt;picture&gt;</code> et d'ajouter une source WebP/AVIF. Les attributs d'origine de l'image sont préservés tels
+quels, et les URL sont systématiquement encodées. Aucune donnée arbitraire n'est injectée dans le HTML.</p>
+
+<h1>14. Glossaire</h1>
+<table>
+<tr><th>Terme</th><th>Définition</th></tr>
+<tr><td>WebP</td><td>Format d'image moderne offrant une compression supérieure au PNG et au JPEG, avec ou sans perte. Supporté par tous les navigateurs récents.</td></tr>
+<tr><td>AVIF</td><td>Format encore plus compact sur les photos à qualité égale (codec AV1), mais encodage plus lent et support encodeur variable. Expérimental ici (§4.9).</td></tr>
+<tr><td>Sans perte (lossless)</td><td>Compression qui préserve exactement les données d'origine : l'image décompressée est strictement identique. C'est le cas de l'optimisation PNG et GIF/gifsicle de l'extension.</td></tr>
+<tr><td>Avec perte (lossy)</td><td>Compression qui supprime des informations pour réduire la taille, au prix d'une légère altération. Utilisée pour les JPEG et, optionnellement, les WebP de JPEG.</td></tr>
+<tr><td>Miniature (thumbnail)</td><td>Version redimensionnée d'une image, générée par MediaWiki pour l'affichage dans les pages (c'est ce qui est réellement servi).</td></tr>
+<tr><td>Balise picture</td><td>Élément HTML permettant de proposer plusieurs sources d'image au navigateur, qui choisit la plus adaptée. Utilisée ici pour servir le WebP/AVIF avec repli sur l'original.</td></tr>
+<tr><td>Backfill (rattrapage)</td><td>Traitement des fichiers déjà présents sur le wiki au moment de l'installation, par opposition aux nouveaux téléversements traités automatiquement.</td></tr>
+<tr><td>Hook</td><td>Point d'extension de MediaWiki permettant à une extension de réagir à un événement (téléversement, génération de miniature, rendu de page, etc.).</td></tr>
+<tr><td>File de tâches (JobQueue)</td><td>Mécanisme de MediaWiki exécutant des traitements en arrière-plan, hors des requêtes web, pour ne pas ralentir l'affichage des pages.</td></tr>
+<tr><td>libvips</td><td>Bibliothèque/CLI de traitement d'image rapide et économe en mémoire (moteur optionnel, §4.7).</td></tr>
+<tr><td>gifsicle</td><td>Outil externe d'optimisation GIF sans perte, sûr pour l'animation (§4.6).</td></tr>
+<tr><td>open_basedir</td><td>Directive de PHP restreignant les répertoires accessibles. Source fréquente de blocage pour l'exécution de binaires situés hors de l'arborescence du site.</td></tr>
+<tr><td>zopflipng / oxipng</td><td>Outils externes de recompression PNG sans perte. zopflipng privilégie la compression maximale, oxipng la rapidité.</td></tr>
+</table>
+
+<h1>15. Tutoriel pas-à-pas (de zéro à la production)</h1>
+<p>Ce tutoriel reprend, dans l'ordre, toutes les étapes pour installer l'extension, la configurer, traiter une
+médiathèque existante, et vérifier le résultat. Il est volontairement détaillé. Les chemins d'exemple
+(<code>/var/www/.../httpdocs</code>) sont à adapter à votre installation.</p>
+<div class="box"><b>Avant de commencer.</b> Prévoyez un accès <b>SSH</b> à votre serveur et un accès administrateur au
+wiki. Si vous n'avez qu'un accès FTP, certaines étapes (lancer les scripts, installer un binaire) ne seront pas
+possibles : un accès shell est nécessaire pour le traitement de masse.</div>
+<h2>Étape 1 — Installer les fichiers de l'extension</h2>
+<p>Décompressez l'archive dans le dossier <code>extensions/</code> de votre wiki. Le dossier doit s'appeler exactement
+<code>VaultTecMediaOptimizer</code>. En SSH :</p>
+<pre>cd /var/www/vhosts/votre-wiki/httpdocs/extensions
+unzip /chemin/vers/VaultTecMediaOptimizer.zip
+ls VaultTecMediaOptimizer/extension.json   # doit exister</pre>
+<p>Si vous passez par FTP : transférez impérativement en <b>mode binaire</b> (un transfert ASCII corrompt
+<code>extension.json</code> et provoque « is not a valid JSON file »).</p>
+<h2>Étape 2 — Activer l'extension</h2>
+<pre>wfLoadExtension( 'VaultTecMediaOptimizer' );</pre>
+<p>Rechargez une page du wiki. Si une erreur apparaît, vérifiez d'abord l'intégrité de <code>extension.json</code>.</p>
+<h2>Étape 3 — Créer les tables en base</h2>
+<pre>php maintenance/run.php update --quick</pre>
+<p>S'il échoue à cause d'une autre extension, reportez-vous à la section 3.3.1 pour appliquer la migration
+manuellement.</p>
+<h2>Étape 4 — Vérifier l'état avec la page de diagnostic</h2>
+<p>Rendez-vous sur <b>Special:VTMOStatus</b> (ou son alias Spécial:VaultTec_État). Les lignes sur PHP, MediaWiki, la
+bibliothèque d'image et le système de fichiers doivent être vertes. La section du second passage PNG peut être ambre
+(non configurée) : c'est normal et non bloquant. Ne passez à la suite que si les vérifications essentielles sont au
+vert.</p>
+<h2>Étape 5 — Comprendre ce qui sera optimisé</h2>
+<table>
+<tr><th>Type</th><th>Traitement</th></tr>
+<tr><td>PNG</td><td>Optimisé sans perte (pixels identiques) à l'upload, puis recompressible plus fort via oxipng/zopflipng. WebP généré.</td></tr>
+<tr><td>JPEG</td><td>Optimisé à l'upload (ré-encodage Imagick, qualité préservée — pas strictement sans perte). WebP généré.</td></tr>
+<tr><td>GIF</td><td>Optimisé sans perte via <code>gifsicle</code> si activé (§4.6), animation préservée ; sinon original non modifié. WebP généré (animé sous Imagick/libvips).</td></tr>
+</table>
+<div class="box"><b>Le cas JPEG, en toute transparence.</b> L'optimisation JPEG des originaux passe par Imagick, qui
+ré-encode l'image : l'étape sur les tables de Huffman est sans perte, mais le ré-encodage en lui-même ne l'est pas à
+100 %. L'extension préserve la qualité d'origine pour que la perte soit invisible, et ne conserve le résultat que
+s'il est plus petit. Si vous tenez à une optimisation JPEG strictement sans perte, retirez <code>image/jpeg</code> de
+<code>…Formats</code> (les WebP des JPEG continueront d'être générés) et utilisez un outil dédié comme
+<code>jpegtran</code> en dehors de l'extension. Dans tous les cas, les visiteurs reçoivent les WebP, non concernés
+par cette nuance.</div>
+<h2>Étape 6 — Lancer le rattrapage des fichiers existants</h2>
+<p>Les nouveaux téléversements sont traités automatiquement, mais les fichiers déjà présents doivent être rattrapés.
+Allez sur <b>Special:VTMOBackfill</b> (file) ou, recommandé pour les gros wikis, utilisez le CLI (§8.6). Assurez-vous
+que la file est traitée régulièrement, par exemple dans un <code>screen</code> :</p>
+<pre>screen -S vtmo-jobs
+php maintenance/run.php runJobs.php --type VaultTecMediaOptimizerOptimizeImage</pre>
+<p>Suivez l'avancement sur <b>Special:VTMOStats</b>.</p>
+<h2>Étape 7 (optionnelle) — Installer un moteur de recompression PNG</h2>
+<p>Pour gagner davantage d'espace disque sur les PNG, installez oxipng (rapide) ou zopflipng (plus lent). Cette étape
+est facultative et ne profite qu'au stockage. Reportez-vous à la section 7, en particulier le piège
+<code>open_basedir</code>. C'est aussi le moment d'activer <b>gifsicle</b> (§4.6) et/ou <b>libvips</b> (§4.7) si
+souhaité.</p>
+<h2>Étape 8 (optionnelle) — Recompresser les PNG existants</h2>
+<pre>screen -S vtmo-png
+/opt/plesk/php/8.4/bin/php /abs/wiki/maintenance/run.php \
+  /abs/wiki/extensions/VaultTecMediaOptimizer/maintenance/recompressOriginals.php</pre>
+<div class="box"><b>Piège fréquent — « Script not found ».</b> N'utilisez pas un chemin relatif : selon le répertoire
+courant, MediaWiki concatène mal les chemins et cherche le script dans <code>maintenance/extensions/…</code>. Donnez
+toujours le <b>chemin absolu</b> du script et de <code>run.php</code>.</div>
+<p>Pour viser la meilleure compression, basculez ensuite sur zopflipng et relancez avec <code>--reset</code> (§8.3).</p>
+<h2>Étape 9 — Vérifier que les WebP sont bien servis aux visiteurs</h2>
+<p>Ouvrez une page du wiki contenant des images, puis inspectez le code (outils de développement). Une image
+optimisée doit être enveloppée dans une <code>&lt;picture&gt;</code> avec une source WebP :</p>
+<pre>&lt;picture&gt;
+  &lt;source srcset="/images_webp/....webp" type="image/webp"&gt;
+  &lt;img src="/images/....png" ...&gt;
+&lt;/picture&gt;</pre>
+<p>Si une image reste servie en PNG/JPEG, rechargez la page une fois (le premier rendu génère les WebP manquants),
+puis rechargez de nouveau.</p>
+<h2>Étape 10 — Purger les caches en fin de traitement</h2>
+<p>Une fois le rattrapage et l'éventuelle recompression terminés, purgez le cache des pages du wiki <b>et</b> du CDN,
+pour que les pages reflètent l'état final.</p>
+<div class="box"><b>Ordre important.</b> Faites la purge <b>après</b> la fin du traitement, pas pendant. Purger pendant
+la réparation est contre-productif : les miniatures en cours d'invalidation seraient re-mises en cache dans leur
+ancienne version.</div>
+<h3>Récapitulatif express</h3>
+<ol>
+<li>Décompresser dans <code>extensions/</code> (FTP binaire).</li>
+<li><code>wfLoadExtension( 'VaultTecMediaOptimizer' );</code> dans LocalSettings.</li>
+<li><code>php maintenance/run.php update --quick</code>.</li>
+<li>Vérifier <b>Special:VTMOStatus</b> (tout au vert).</li>
+<li>Lancer le rattrapage (file ou CLI <code>optimizeImages.php</code>).</li>
+<li>(Option) Installer/activer gifsicle, libvips, oxipng.</li>
+<li>(Option) <code>recompressOriginals.php</code>, puis finition zopflipng avec <code>--reset</code>.</li>
+<li>Vérifier les balises <code>&lt;picture&gt;</code> sur quelques pages.</li>
+<li>Purger les caches (wiki + CDN) en fin de traitement.</li>
+</ol>
+
+<h1>16. Benchmarks — coût / bénéfice <span class="badge">NOUVEAU</span></h1>
+<p>Deux familles de chiffres. <b>(A)</b> un <b>modèle coût/bénéfice</b> du wiki réel, recalculé depuis des hypothèses
+explicites ; <b>(B)</b> des <b>mesures réelles</b> prises sur la machine de test (PHP 8.4, libvips 8.15.1,
+ImageMagick 6.9.12, gifsicle 1.94, zopflipng, PHP-GD ; <b>un seul cœur</b>). Tout est reproductible via
+<code>docs/benchmarks/model.py</code> et <code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Hypothèses du modèle</b> (unités décimales ; 365 j/an) : originaux <b>52,62 Go</b> de PNG+JPEG ;
+trafic en <b>borne haute (cache froid)</b> de <b>100 000 vues/jour × 10 miniatures</b> ; miniature servie moyenne
+55,3 Ko ; optimisation sans perte de miniature −13,7 % ; WebP de miniature −34 % (≈ −43 % vs brut) ; recompression
+des originaux −7/−16/−24 % (bas/médian/haut) ; copies WebP ≈ 70 % de l'original optimisé, stockées <b>en plus</b>.</div>
+<p class="small"><b>Cadrage honnête.</b> Les pages servent des <b>miniatures</b> (déjà petites), pas les originaux,
+et le WebP <b>ajoute</b> du disque. On sépare donc la <i>bande passante servie</i> (le vrai bénéfice) de la
+<i>compression par fichier</i>.</p>
+<h2>16.1 Bande passante servie — le vrai bénéfice</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bande passante servie par jour">
+<p class="fcap">~55 → ~31 Go/jour (−43 %), ~8,7 To/an — borne haute (cache froid).</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="Effet du cache">
+<p class="fcap">Le ratio −43 % est robuste ; le To/an absolu fond avec le cache navigateur/CDN.</p>
+<h2>16.2 Disque : le WebP en ajoute</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disque occupé">
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Variation de disque">
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="Arbitrage disque vs bande passante">
+<p class="fcap">Le disque monte (52,6 → ~75 Go au médian) ; l'arbitrage : coût disque ponctuel (~+22 Go) vs économie de bande passante récurrente.</p>
+<h2>16.3 Compression par fichier (mesurée) — ≠ bande passante</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="Compression WebP par catégorie">
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="WebP lossless par moteur">
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP">
+<p class="fcap">Gains par fichier (pas le trafic) ; le moteur compte (GD ≈ 2,7× plus gros en lossless) ; à qualité égale, l'AVIF n'est pas systématiquement plus petit (dépend du contenu/encodeur).</p>
+<h2>16.4 GIF &amp; 2ᵉ passe PNG (disque)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF gifsicle">
+<img class="chart" src="benchmarks/10-png-passes.png" alt="Passes PNG">
+<p class="fcap">gifsicle −60 à −66 % (sans perte, ~20 ms) ; 2ᵉ passe zopflipng ~−12 % de disque mais lente (~14 s).</p>
+<h2>16.5 Moteur : mémoire, vitesse, débit</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Mémoire moteur">
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Temps moteur">
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Débit par profil">
+<p class="fcap">Mesuré aux vrais réglages (PNG→WebP lossless, JPEG→q85) : libvips = moins de mémoire partout (surtout miniatures) ; ~40× plus vite uniquement sur les miniatures JPEG (shrink-on-load), PAS plus rapide sur gros PNG lossless. Débit ~245→~65 img/min selon la richesse média.</p>
+
+<!-- ##################### ENGLISH ##################### -->
+<h1 class="langsep nobreak" style="page-break-before:always;">Contents <span class="small">(English version)</span></h1>
+<div class="toc"><ul>
+<li><b>1.</b> Overview</li>
+<li><b>2.</b> Prerequisites &amp; dependencies <span class="small">— 2.5 installing the dependencies (new)</span></li>
+<li><b>3.</b> Installation</li>
+<li><b>4.</b> Configuration <span class="small">— 4.6 GIF/gifsicle, 4.7 libvips, 4.8 large-wiki mode, 4.9 AVIF (new)</span></li>
+<li><b>5.</b> Technical architecture &nbsp;·&nbsp; <b>6.</b> Special pages &nbsp;·&nbsp; <b>7.</b> Second-pass binaries</li>
+<li><b>8.</b> Maintenance <span class="small">— 8.6 CLI backfill (new)</span> &nbsp;·&nbsp; <b>9.</b> Troubleshooting</li>
+<li><b>10.</b> Quick reference &nbsp;·&nbsp; <b>11.</b> FAQ &nbsp;·&nbsp; <b>12.</b> Uninstallation &nbsp;·&nbsp; <b>13.</b> Security &nbsp;·&nbsp; <b>14.</b> Glossary</li>
+<li><b>15.</b> Step-by-step tutorial &nbsp;·&nbsp; <b>16.</b> Benchmarks — cost / benefit <span class="small">(new)</span></li>
+</ul></div>
+<div class="new"><b>What's new since v1.4.1 (through 1.8.1).</b> This manual reproduces the full 1.4.1 documentation and
+integrates everything added since: optional <b>libvips</b> image engine (§4.7), <b>lossless GIF optimization</b> via
+<code>gifsicle</code> (§4.6), <b>large-wiki CLI mode</b> (§4.8 and §8.6), <b>experimental AVIF</b> (§4.9),
+<b>dependency installation</b> (§2.5), a measured, honest <b>cost/benefit benchmarks</b> section (§16), and the
+<b>1.8.1 fixes</b> (metadata refresh after the first pass; animated GIFs never frozen under GD). Experimental items
+are marked <span class="badge xp">EXPERIMENTAL</span>, additions <span class="badge">NEW</span>.</div>
+
+<h1>1. Overview</h1>
+<p>Vault-Tec Media Optimizer is a MediaWiki extension that reduces the weight of a wiki's media in two complementary
+ways: it optimizes the original files (PNG, JPEG, GIF) losslessly, and it generates a WebP version (and, optionally,
+AVIF) of each image, served automatically to browsers through a <code>&lt;picture&gt;</code> tag. Visitors receive
+substantially lighter images with no visible loss of quality, which speeds up page loads and reduces bandwidth.</p>
+<p>The extension is designed to work transparently: newly uploaded files are processed automatically, and a backfill
+mechanism lets you process every file already present. Three special pages provide full diagnostics, backfill control,
+and detailed statistics.</p>
+<h2>1.1 How it works</h2>
+<ul>
+<li><b>The optimized original</b>: the source file (PNG/JPEG/GIF) is recompressed losslessly. The pixels stay
+strictly identical; only the file size on disk goes down. This saving is about server storage space.</li>
+<li><b>The WebP version</b>: a WebP copy is generated and stored separately. This much lighter version is the one sent
+to compatible browsers. This saving is about bandwidth and load speed for visitors.</li>
+</ul>
+<p>The <code>&lt;picture&gt;</code> tag inserted into the HTML lets the browser choose automatically: WebP (or AVIF)
+if it supports it (all modern browsers), the original format otherwise. The original image therefore always remains
+available, guaranteeing full compatibility and the correct operation of features such as the media viewer.</p>
+<h2>1.2 What the extension does not do</h2>
+<ul>
+<li>It never degrades the visual quality of original images (strictly lossless optimization for PNG; high-quality
+re-encoding for JPEG).</li>
+<li>It does not delete original files: they stay in place and accessible.</li>
+<li>For <b>GIF</b>, optimizing the original is now possible and <b>strictly lossless</b> via <code>gifsicle</code>
+(§4.6), animation-safe and <b>off by default</b>. Without <code>gifsicle</code>, the GIF original is left untouched
+(to take no risk with the animation) and only its WebP is produced — the historical behaviour.</li>
+<li>It depends on no external or cloud service: all processing happens on your server.</li>
+</ul>
+
+<h1>2. Prerequisites &amp; dependencies</h1>
+<p>The extension requires an environment meeting the following conditions. The <b>VTMOStatus</b> special page
+(section 6.1) automatically checks all of these prerequisites and flags any problem.</p>
+<h2>2.1 Minimum versions</h2>
+<table>
+<tr><th>Component</th><th>Required version</th></tr>
+<tr><td>MediaWiki</td><td>1.43 or higher</td></tr>
+<tr><td>PHP</td><td>8.1 or higher</td></tr>
+<tr><td>Image library</td><td>Imagick (recommended) or GD, with WebP support</td></tr>
+</table>
+<h2>2.2 Image processing library</h2>
+<p>The extension uses Imagick (the PHP interface to ImageMagick) by preference, as it is more faithful and complete.
+In its absence, it automatically falls back to GD, present by default in most PHP installations. In both cases, WebP
+support must be enabled in the library, otherwise WebP generation is impossible.</p>
+<div class="box"><b>Tip.</b> Imagick is strongly recommended. It handles PNG transparency and color profiles better and
+offers finer control over compression (and true lossless WebP, where GD only approximates). The VTMOStatus page
+clearly indicates which library is in use and whether WebP support is present. <i>See also the <b>libvips</b> engine
+(§4.7), a fast, memory-light alternative at scale.</i></div>
+<h2>2.3 File system</h2>
+<p>The extension reads from and writes directly to the wiki's local file system (an <code>FSFileBackend</code>
+backend). It detects non-local backends (such as Amazon S3 or OpenStack Swift) and reports them, since in-place
+processing is not possible there without adaptation. The WebP destination directory (<code>images_webp/</code> by
+default) must be writable by the user PHP runs as.</p>
+<h2>2.4 PHP memory and execution time</h2>
+<ul>
+<li><code>memory_limit</code>: 256 MB minimum. A value of 128 MB works for most images but may fail on very large
+ones. <i>libvips markedly lowers this need (§16.5).</i></li>
+<li><code>max_execution_time</code>: not very critical, since the bulk of the work goes through the asynchronous job
+queue rather than direct web requests.</li>
+</ul>
+<h2>2.5 Installing the dependencies <span class="badge">NEW</span></h2>
+<p>The extension runs with a bare minimum: an image library with WebP support. Every other dependency is
+<b>optional</b> with only a targeted benefit.</p>
+<table>
+<tr><th>Dependency</th><th>Role</th><th>Required?</th></tr>
+<tr><td>Imagick <i>or</i> GD (with WebP)</td><td>First pass + WebP encoding</td><td><b>Yes</b> (either one)</td></tr>
+<tr><td>libvips (<code>vips</code>)</td><td>Fast/light engine at scale (§4.7, §16)</td><td>No — opt-in</td></tr>
+<tr><td><code>gifsicle</code></td><td>Lossless GIF first pass, animation-safe (§4.6)</td><td>No — GIF gain</td></tr>
+<tr><td><code>zopflipng</code></td><td>Second-pass lossless PNG, max compression (§4.4)</td><td>No — disk gain</td></tr>
+<tr><td><code>oxipng</code></td><td>Second-pass lossless PNG, fast (§4.4)</td><td>No — disk gain</td></tr>
+<tr><td>libheif+AV1 / <code>imageavif()</code></td><td>Experimental AVIF (§4.9)</td><td>No — experimental</td></tr>
+</table>
+<pre># Debian / Ubuntu — image library (one of) + optional binaries
+sudo apt install php-imagick        # recommended
+sudo apt install php-gd             # fallback, often already present
+sudo apt install gifsicle libvips-tools zopfli
+# RHEL / Alma / Rocky / Fedora (EPEL)
+sudo dnf install php-imagick php-gd gifsicle vips-tools zopfli
+# oxipng: often not packaged -> compile (avoids glibc issues)
+cargo install oxipng</pre>
+<p>Check WebP support (mandatory):</p>
+<pre>php -r 'echo extension_loaded("imagick")&amp;&amp;in_array("WEBP",Imagick::queryFormats())?"Imagick+WebP OK\n":"";'
+php -r '$i=gd_info();echo !empty($i["WebP Support"])?"GD+WebP OK\n":"GD without WebP\n";'</pre>
+<div class="box"><b><code>open_basedir</code> trap (shared hosting / Plesk).</b> If PHP is restricted, a binary in
+<code>/usr/bin</code> stays invisible to the web side even though it works on the command line. <b>Golden rule:</b>
+copy the binary <i>inside</i> the wiki tree (e.g. <code>httpdocs/bin/</code>), <code>chmod 755</code>, owner = the PHP
+user, then set its <b>absolute path</b>. This applies to <code>vips</code>, <code>gifsicle</code>,
+<code>zopflipng</code> and <code>oxipng</code>.</div>
+
+<h1>3. Installation</h1>
+<h2>3.1 Placing the files</h2>
+<p>Unpack the extension archive into the <code>extensions/</code> directory of your MediaWiki installation. The folder
+must be named exactly <code>VaultTecMediaOptimizer</code>, i.e. <code>extensions/VaultTecMediaOptimizer/</code>.</p>
+<div class="box"><b>Important — FTP transfer.</b> If you transfer the files over FTP, you must use <b>binary mode</b>,
+not ASCII mode. An ASCII-mode transfer corrupts the <code>extension.json</code> file in particular (it alters line
+endings and encoding), which causes the “is not a valid JSON file” error at startup. When in doubt, unpack the archive
+directly on the server over SSH.</div>
+<h2>3.2 Enabling in LocalSettings.php</h2>
+<pre>wfLoadExtension( 'VaultTecMediaOptimizer' );</pre>
+<p>Any custom settings (see section 4) must be placed <b>after</b> this line, so they are not overwritten by the
+default values.</p>
+<h2>3.3 Database update</h2>
+<p>The extension creates two tables (<code>vtmo_image_optimization</code> and <code>vtmo_zopfli_thumb_stats</code>)
+and, on a version upgrade, adds a column. Run MediaWiki's update script:</p>
+<pre>php maintenance/run.php update --quick</pre>
+<p>On versions earlier than MediaWiki 1.40, the equivalent command is <code>php maintenance/update.php --quick</code>.</p>
+<div class="box"><b>Note.</b> The update script is idempotent: it can be re-run safely. It detects what already exists
+and applies only the necessary changes, whether this is a fresh install, an upgrade, or an already up-to-date
+database.</div>
+<h3>3.3.1 If blocked by another extension</h3>
+<p>If <code>update.php</code> fails because of another extension (one whose SQL file is not idempotent), the migration
+may never be reached. Either temporarily disable the offending extension, re-run <code>update.php</code>, then
+re-enable it; or create the objects manually via SQL:</p>
+<pre>ALTER TABLE vtmo_image_optimization
+  ADD COLUMN IF NOT EXISTS io_png_zopfli_size INT UNSIGNED DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS vtmo_zopfli_thumb_stats (
+  zts_id INT UNSIGNED NOT NULL,
+  zts_thumb_count INT UNSIGNED DEFAULT 0 NOT NULL,
+  zts_bytes_saved BIGINT UNSIGNED DEFAULT 0 NOT NULL,
+  zts_updated_at BINARY(14) DEFAULT NULL,
+  PRIMARY KEY(zts_id)
+);</pre>
+<h2>3.4 Post-install verification</h2>
+<p>Go to <b>Special:VTMOStatus</b>. All checks should be green (or amber for optional, non-blocking items). It is the
+reference tool for confirming the installation is healthy before launching the backfill.</p>
+
+<h1>4. Configuration</h1>
+<p>All settings are defined in <code>LocalSettings.php</code>, after the <code>wfLoadExtension</code> line. Each
+setting has a sensible default; only override the ones you want to change. The full prefix is
+<code>$wgVaultTecMediaOptimizer</code> (e.g. <code>$wgVaultTecMediaOptimizerEnabled</code>), abbreviated
+<code>…</code> in the tables.</p>
+<h2>4.1 General settings</h2>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…Enabled</code></td><td><code>true</code></td><td>Master switch. Setting it to <code>false</code> disables the extension entirely.</td></tr>
+<tr><td><code>…Formats</code></td><td>png, jpeg, gif</td><td>MIME types to process. Array of strings (<code>image/png</code>, etc.).</td></tr>
+<tr><td><code>…MaxFileSize</code></td><td>52428800</td><td>Maximum file size (in bytes) to process. 50 MiB by default.</td></tr>
+<tr><td><code>…StripMetadata</code></td><td><code>true</code></td><td>Removes non-essential metadata (EXIF, etc.) while preserving color profile and transparency.</td></tr>
+</table>
+<h2>4.2 Original optimization</h2>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…OptimizeOriginals</code></td><td><code>true</code></td><td>Enables recompression of original files. If <code>false</code>, only WebP files are generated (originals untouched).</td></tr>
+</table>
+<p>Original optimization depends on the type: PNG files are recompressed strictly losslessly; JPEG files are optimized
+(Huffman tables, progressive, metadata stripped) but via an Imagick re-encode that is not strictly lossless (the
+original quality is preserved so the loss is invisible); GIF files are optimized losslessly by <code>gifsicle</code>
+if enabled (§4.6), otherwise left intact.</p>
+<div class="box"><b>Note.</b> Disabling <code>OptimizeOriginals</code> is useful if you do not want to modify the
+original files on disk. It does not affect WebP generation or the visitor experience, who always receive the lighter
+WebP versions.</div>
+<h2>4.3 WebP generation</h2>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…WebPDirectory</code></td><td>images_webp</td><td>Directory (relative to the wiki root) where WebP files are stored, separately from originals.</td></tr>
+<tr><td><code>…WebPQuality</code></td><td>85</td><td>WebP quality for lossy images (JPEG). Recommended range: 80-90.</td></tr>
+<tr><td><code>…WebPLosslessForPng</code></td><td><code>true</code></td><td>Generates PNG WebP files in lossless mode, preserving transparency.</td></tr>
+</table>
+<h2>4.4 Second-pass PNG recompression (zopflipng / oxipng)</h2>
+<p>Beyond the base optimization, the extension can apply a second pass of lossless PNG recompression using an external
+tool. Two engines are available. This second pass is <b>disabled by default</b>, and its only benefit is additional
+disk-space savings (on the order of 8 to 20% on PNGs). It does not improve the WebP files served to visitors: it is
+therefore only worthwhile if storage space is a concern. <b>zopflipng</b> = maximum compression but slow;
+<b>oxipng</b> = much faster (Rust, multi-threaded), nearly as small — recommended for bulk.</p>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…ZopfliEnabled</code></td><td><code>false</code></td><td>Master switch for the second pass, regardless of engine.</td></tr>
+<tr><td><code>…PngEngine</code></td><td>zopflipng</td><td>Engine: <code>zopflipng</code> or <code>oxipng</code>.</td></tr>
+<tr><td><code>…ZopfliBinary</code></td><td>zopflipng</td><td>Path/command for the zopflipng binary.</td></tr>
+<tr><td><code>…ZopfliIterations</code></td><td>15</td><td>zopflipng iterations. Higher = smaller but slower.</td></tr>
+<tr><td><code>…OxipngBinary</code></td><td>oxipng</td><td>Path/command for the oxipng binary.</td></tr>
+<tr><td><code>…OxipngLevel</code></td><td>2</td><td>oxipng level (0-6 or <code>max</code>). 2 is a good balance.</td></tr>
+</table>
+<h2>4.5 Backfill</h2>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…ProcessThumbnails</code></td><td><code>true</code></td><td>Also recompress thumbnails on the fly as they are generated.</td></tr>
+<tr><td><code>…BackfillBatchSize</code></td><td>20</td><td>Files per batch when backfilling via the queue.</td></tr>
+<tr><td><code>…OnDemandThumbLimit</code></td><td>5</td><td>Max missing thumbnail WebP files generated <i>synchronously</i> during a single render (cold-cache latency guard). <code>0</code> disables on-the-fly generation.</td></tr>
+</table>
+<h2>4.6 GIF optimization (gifsicle) <span class="badge">NEW</span></h2>
+<p>A <b>strictly lossless, animation-safe</b> first GIF pass via the external <code>gifsicle</code> binary. The
+extension only ever passes <code>-O{level}</code> (structural optimization): never resize, never alter pixels, timing
+or the loop counter. The rendered animation is identical pixel-for-pixel — only its on-disk representation shrinks. It
+runs on upload <b>and</b> during the CLI backfill; a missing or disabled <code>gifsicle</code> is a harmless no-op
+(WebP generation still proceeds). A keep-if-smaller guard prevents any growth.</p>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…GifsicleEnabled</code></td><td><code>false</code></td><td>Enables lossless GIF optimization.</td></tr>
+<tr><td><code>…GifsicleBinary</code></td><td>gifsicle</td><td>Path/command for the binary.</td></tr>
+<tr><td><code>…GifsicleLevel</code></td><td>3</td><td><code>-O</code> level (1–3); 3 tries the most strategies.</td></tr>
+</table>
+<h2>4.7 libvips engine (optional) <span class="badge">NEW</span></h2>
+<p>An alternative image engine based on the <code>vips</code> binary (no PHP extension needed). It produces a WebP of
+<b>identical quality/size</b> to Imagick/GD (same libwebp), but can be <b>lighter on memory</b>, especially on
+thumbnails (see §16.5 for honest measurements). If the binary is unusable, the extension <b>falls back
+automatically</b> to Imagick/GD.</p>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…ImageEngine</code></td><td>auto</td><td><code>auto</code> (Imagick then GD) or <code>vips</code>.</td></tr>
+<tr><td><code>…VipsBinary</code></td><td>vips</td><td>Path/command for the <code>vips</code> binary.</td></tr>
+</table>
+<h2>4.8 Large-wiki mode: job queue <span class="badge">NEW</span></h2>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…UseJobQueue</code></td><td><code>true</code></td><td><code>false</code> = stop enqueuing on upload: optimize originals via the CLI (§8.6) on your own schedule. Thumbnails still get WebP on demand at render.</td></tr>
+</table>
+<h2>4.9 AVIF (experimental) <span class="badge xp">EXPERIMENTAL</span></h2>
+<p>Generates an <b>AVIF</b> copy in addition to WebP and offers it <i>before</i> WebP inside
+<code>&lt;picture&gt;</code> (capable browsers pick AVIF, others fall back to WebP then the original). Depending on
+content and encoder, AVIF <i>can</i> be more compact than WebP at equal quality — but not always (on noise or at high
+quality it can be larger). The extension therefore <b>compares the AVIF to the WebP and keeps the AVIF only if
+strictly smaller</b>; otherwise it serves WebP. AVIF needs an <b>AV1</b> encoder (Imagick+libheif/AV1, PHP-GD
+<code>imageavif()</code>, or libvips <code>heifsave</code>+AV1); the extension <b>probes</b> this capability and falls
+back cleanly to WebP when absent. Slow encoding → off by default.</p>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>…AvifEnabled</code></td><td><code>false</code></td><td>Enables AVIF generation (in addition to WebP).</td></tr>
+<tr><td><code>…AvifDirectory</code></td><td>images_avif</td><td>Directory for AVIF copies (sibling of <code>images/</code>).</td></tr>
+<tr><td><code>…AvifQuality</code></td><td>50</td><td>AVIF quality (0-100). ≈ 45-55 ≈ WebP 80-85 visually (real gain is content/encoder-dependent). Alpha preserved.</td></tr>
+</table>
+
+<h1>5. Technical architecture</h1>
+<h2>5.1 File processing flow</h2>
+<ol>
+<li><b>Validation</b>: is the MIME type allowed? is the size under the limit? is the file writable?</li>
+<li><b>Original optimization</b> (if enabled): lossless recompression (PNG/JPEG; GIF via gifsicle, §4.6). Essential
+guard — the result replaces the original only if strictly smaller; otherwise the original is kept intact.</li>
+<li><b>Metadata refresh</b> <span class="badge">1.8.1</span>: if the first pass actually shrank the original,
+MediaWiki's stored metadata (<code>img_sha1</code>, <code>img_size</code>, dimensions) is refreshed. Without this,
+duplicate detection and thumbnail cache invalidation would stay pinned to the pre-optimization bytes.</li>
+<li><b>WebP generation</b> (and AVIF if enabled) in the dedicated directory.</li>
+<li><b>Recording</b>: the sizes (original, optimized, WebP) are stored in the database for statistics.</li>
+</ol>
+<div class="box"><b>Anti-bloat guard.</b> Optimization always writes to a temporary file and replaces the original only
+if the new version is strictly smaller. This guarantees that an optimization can never increase a file's size — a
+classic pitfall when a re-encode produces a file larger than the source (common on PNGs already optimized by another
+tool). Writes are <b>atomic</b> (a unique temp file + <code>rename</code>), so a concurrent reader never sees a
+half-written file.</div>
+<h2>5.2 Delivery via the picture tag</h2>
+<p>On render (the <i>view</i> action), a hook rewrites image HTML to wrap it in a <code>&lt;picture&gt;</code> tag,
+offering the WebP source (and AVIF before it if enabled) with a fallback to the original. The browser automatically
+picks the best format it supports. High-density (Retina) screens are handled via <code>srcset</code> (1x, 1.5x, 2x).</p>
+<div class="box"><b>Important.</b> A source is emitted only if the corresponding WebP/AVIF file actually exists on disk.
+This is deliberate: unlike <code>&lt;img srcset&gt;</code>, a missing source in a <code>&lt;picture&gt;</code> does not
+fall back automatically and would show a broken image. If the WebP of a given size is unavailable, the original image
+is served intact. <b>Corollary (1.8.1 fix)</b>: under GD, an <b>animated</b> GIF gets no WebP/AVIF (GD decodes only the
+first frame) — the animated GIF is kept so the animation is never frozen. Imagick and libvips produce animated
+WebP/AVIF and are unaffected.</div>
+<h2>5.3 WebP generation: on creation and on demand</h2>
+<ul>
+<li><b>On creation</b>: when MediaWiki generates a thumbnail, a hook immediately produces its WebP — for every new
+upload and every size requested for the first time.</li>
+<li><b>On demand</b>: at render, if an image references a thumbnail whose WebP is missing but whose source exists on
+disk, the extension generates the missing WebP then, in the same flow that already serves the page (bounded by
+<code>OnDemandThumbLimit</code>).</li>
+</ul>
+<p>This dual mechanism covers every size actually used, including thumbnails created before the extension was
+installed, or sizes MediaWiki does not regenerate (e.g. fixed infobox widths).</p>
+<div class="box"><b>Performance.</b> The very first render of a cold page may be slightly slower, as it generates the
+missing WebP files for the sizes it uses. Later renders are instant (the WebP is cached on disk). If generation fails
+repeatedly (e.g. a permissions problem on the WebP directory), watch the logs and check the destination directory's
+permissions.</div>
+<h2>5.4 Asynchronous processing</h2>
+<p>The backfill of existing files goes through MediaWiki's JobQueue, not web requests. Two job types are defined:
+standard image optimization and zopflipng/oxipng recompression. This decoupling avoids slowing pages down and spreads
+the load over time. In large-wiki mode (§4.8), the queue is bypassed in favour of CLI processing (§8.6).</p>
+<h2>5.5 Storage and cache</h2>
+<p>Tracking data lives in <code>vtmo_image_optimization</code> (one row per processed file). Aggregate statistics are
+cached via the object cache (<code>WANObjectCache</code>) with a short TTL, to avoid recomputing expensive sums on
+every view; the cache is invalidated on each write. Statistics queries are portable across MySQL/MariaDB, SQLite and
+PostgreSQL.</p>
+
+<h1>6. Special pages</h1>
+<p>The extension provides three special pages, accessible to administrators (right
+<code>vaulttecmediaoptimizer-admin</code>, granted by default to the <code>sysop</code> group). They have canonical
+English names and French aliases.</p>
+<table>
+<tr><th>Role</th><th>French alias</th><th>Canonical name</th></tr>
+<tr><td>Status / diagnostics</td><td>Spécial:VaultTec_État</td><td>Special:VTMOStatus</td></tr>
+<tr><td>Backfill</td><td>Spécial:VaultTec_Optimisation</td><td>Special:VTMOBackfill</td></tr>
+<tr><td>Statistics</td><td>Spécial:VaultTec_Statistiques</td><td>Special:VTMOStats</td></tr>
+</table>
+<h2>6.1 VTMOStatus (diagnostics)</h2>
+<p>This page checks the whole environment and shows each control with a colour code: green (compliant), amber
+(non-blocking warning), red (blocking problem), or neutral info. It covers PHP and MediaWiki versions, memory, image
+libraries and their WebP support, the <b>active engine</b> (Imagick/GD/vips) and its probe, the file system and
+directories, the database table, the second-pass PNG state (selected engine, shell execution, binary), the
+availability of <b>gifsicle</b> and <b>AVIF/AV1</b>, compatibility with other extensions, and the configuration. It is
+the first place to look when something behaves abnormally.</p>
+<h2>6.2 VTMOBackfill</h2>
+<p>This page drives the processing of files already present. It shows how many files remain and lets you schedule
+batches in the job queue. If the second-pass PNG is available, a dedicated button launches zopflipng/oxipng
+recompression of existing files. The button only appears if the engine is correctly detected.</p>
+<h2>6.3 VTMOStats</h2>
+<p>This page shows an overview of the gains achieved, computed from real on-disk sizes (before/after each step). It
+reports three savings figures (total / first pass / second pass).</p>
+<div class="box"><b>Low gain if files were already optimized.</b> The recorded “starting” size is the file's size when
+the extension first processed it, not the raw original. If your files were already optimized, little is left to gain
+and the “originals” percentage will be naturally low — not a failure, just clean files.</div>
+<div class="box"><b>WebP costs disk, but saves bandwidth.</b> It is normal and expected for the disk balance to be
+negative. WebP's goal is not to save server storage but to cut the weight of images sent to visitors (bandwidth). See
+§16 for a measured, honest figure.</div>
+<div class="box"><b>Estimate, not measurement.</b> The extension does not track real views. The reduction
+<b>percentage</b> is reliable (from real sizes), but the absolute volume depends on traffic and on browser/CDN caches
+that strongly reduce real traffic — treat it as an order of magnitude, not a bill (cf. §16).</div>
+<p>The page also shows compression rates, a per-format breakdown, a second-pass PNG section, a per-engine breakdown,
+and the list of any failed files.</p>
+
+<h1>7. Installing the second-pass binaries</h1>
+<h2>7.1 The open_basedir pitfall</h2>
+<p>Many hosts (notably under Plesk) restrict the paths PHP can read and execute via the <code>open_basedir</code>
+directive. Typically PHP only has access to the site directory and to <code>/tmp/</code>, but not to
+<code>/usr/bin/</code>. As a result, even if a binary is installed in <code>/usr/bin/</code> and works perfectly on
+the command line, PHP can neither see nor execute it from the web context — a very common and confusing cause of
+errors, since the binary “exists” yet remains unusable by the extension.</p>
+<div class="box"><b>Golden rule.</b> Always place the recompression binary inside the wiki tree (e.g. a
+<code>bin/</code> subfolder), so it is covered by <code>open_basedir</code>. Then configure the <b>full absolute
+path</b> to it, not a bare command name.</div>
+<h2>7.2 Installing oxipng (recommended)</h2>
+<p>oxipng ships as a precompiled binary. Beware, though: generic binaries from public repos may require a newer system
+library (glibc) than your server's, causing a “GLIBC_2.34 not found” error. The most reliable method is to compile
+oxipng on the machine itself (via Rust's <code>cargo</code>), then copy the resulting binary into the wiki tree.</p>
+<pre>mkdir -p /path/to/wiki/httpdocs/bin
+cp /src/oxipng /path/to/wiki/httpdocs/bin/oxipng
+chmod 755 /path/to/wiki/httpdocs/bin/oxipng
+chown user:group /path/to/wiki/httpdocs/bin/oxipng</pre>
+<pre>$wgVaultTecMediaOptimizerZopfliEnabled = true;
+$wgVaultTecMediaOptimizerPngEngine = 'oxipng';
+$wgVaultTecMediaOptimizerOxipngBinary = '/path/to/wiki/httpdocs/bin/oxipng';</pre>
+<h2>7.3 Verifying shell execution on the web side</h2>
+<p>The extension needs PHP to be able to launch external processes (<code>proc_open</code> or <code>exec</code>). If
+those are in PHP's <code>disable_functions</code>, the second pass (and gifsicle/vips) is impossible. The VTMOStatus
+page reports shell execution <b>in the web context</b> — that is the context that matters, and it can differ from the
+command line.</p>
+
+<h1>8. Maintenance</h1>
+<h2>8.1 Running the initial backfill</h2>
+<p>After installation, the files already present are not yet processed. Launch the backfill from
+<b>Special:VTMOBackfill</b>, which schedules batches in MediaWiki's job queue.</p>
+<div class="box"><b>Prefer the command line for large volumes.</b> The special page does not process files directly: it
+schedules jobs. By default MediaWiki runs those at the end of visitor requests (<code>$wgJobRunRate</code>). Since each
+optimization job launches an external tool that costs CPU time, the visitor's request waits for the job to finish —
+the wiki then looks slow, when in reality your visitors are doing the processing for you. For a bulk backfill or
+recompression, run the processing on the command line (SSH) instead, in a separate process that doesn't affect
+visitors.</div>
+<pre>screen -S vtmo-jobs
+php maintenance/run.php runJobs.php --type VaultTecMediaOptimizerOptimizeImage</pre>
+<div class="box"><b>The <code>$wgJobRunRate</code> setting.</b> Raising <code>$wgJobRunRate</code> (as some generic
+MediaWiki messages suggest) <b>worsens</b> the slowdown for visitors instead of easing it, since more heavy jobs run on
+their requests. For heavy processing the right value is <b>0</b> (no jobs on web requests), combined with a
+<code>runJobs.php</code> over SSH, or simply the dedicated CLI scripts (§8.6).</div>
+<h2>8.2 Repairing improperly inflated originals</h2>
+<p><code>repairBloatedOriginals.php</code> repairs files whose “optimized” version is, due to a legacy defect, larger
+than the original. It recompresses each affected file with the configured PNG engine (oxipng recommended for speed),
+corrects the recorded sizes so statistics become consistent again, and refreshes MediaWiki's metadata. Always start
+with <code>--dry-run</code>; use the <b>absolute path</b> if you get “Script not found”.</p>
+<pre>php maintenance/run.php .../repairBloatedOriginals.php --dry-run
+php maintenance/run.php .../repairBloatedOriginals.php --max=20
+php maintenance/run.php .../repairBloatedOriginals.php</pre>
+<h2>8.3 Recompressing with a second engine (oxipng then zopflipng)</h2>
+<div class="box"><b>Understand first.</b> PNG is lossless, so each engine re-encodes from the decoded pixels. Chaining
+oxipng then zopflipng does <b>not</b> add up the two gains: the final result is determined by the last engine that
+writes. Concretely, “oxipng then zopflipng” yields the same result as “zopflipng alone”. The point of chaining is to
+deflate the bulk fast with oxipng, then run the slow engine only for finishing. A built-in guard keeps the second
+engine's output only if it is actually smaller — a file is never enlarged.</div>
+<pre># first pass (configured engine, e.g. oxipng)
+... recompressOriginals.php
+# then set PngEngine = 'zopflipng' and re-run:
+... recompressOriginals.php --reset</pre>
+<p><code>--reset</code> re-marks already-processed PNGs as to-do so the new engine picks them up. <code>--dry-run</code>
+previews, <code>--max=N</code> limits. Thumbnails are not re-processed in bulk: purge them to force regeneration with
+the current engine.</p>
+<h2>8.4 Cache purge after message changes</h2>
+<pre>php maintenance/run.php rebuildLocalisationCache --force</pre>
+<h2>8.5 HTTP cache headers (recommendation)</h2>
+<p>To fully benefit from the generated WebP, configure your web server so WebP (and AVIF) files are cached for a long
+time by browsers — e.g. a long <code>Cache-Control</code> header on the <code>.webp</code> files under
+<code>images_webp/</code>. A major and often-forgotten lever to actually cut bandwidth (see §16).</p>
+<h2>8.6 CLI backfill — <code>optimizeImages.php</code> <span class="badge">NEW</span></h2>
+<p>For large wikis, a dedicated script performs the backfill <b>directly on the command line</b> (first pass + WebP)
+<b>without the job queue</b> — ideal so visitors are not affected. It honours the configured engine (incl. vips).
+Combine it with large-wiki mode (§4.8):</p>
+<pre>// LocalSettings.php (large-wiki mode)
+$wgVaultTecMediaOptimizerUseJobQueue = false;</pre>
+<pre>screen -S vtmo
+php maintenance/run.php .../optimizeImages.php --dry-run
+php maintenance/run.php .../optimizeImages.php --batch=200
+php maintenance/run.php .../optimizeImages.php --format=gif</pre>
+<p>Options: <code>--dry-run</code>, <code>--batch</code>, <code>--max</code>, <code>--start</code>,
+<code>--force</code>, <code>--format</code> (a subset of the configured formats), <code>--purge-queue</code>. The
+<code>purgeQueue.php</code> script empties the Optimize queue (and, with <code>--include-zopfli</code>, the second-pass
+queue).</p>
+<div class="box"><b>One path at a time</b> for a given corpus: either the queue (<code>runJobs.php</code>) or the CLI
+(<code>optimizeImages.php</code>). Don't run both at once on the same stock (atomic writes = no corruption, but
+duplicated work). Use <code>--purge-queue</code> if needed.</div>
+
+<h2>8.7 The thumbnail second pass is a job — process it off-line <span class="badge">NEW</span></h2>
+<p>When MediaWiki generates a new PNG thumbnail, the extension immediately produces its WebP (fast, &lt; 50 ms).
+The <b>zopflipng second pass</b> on that thumbnail, however — a pure disk gain — costs <b>seconds per file</b>
+(≈ 14 s, see §16). Running it during render would make the <b>visitor</b> pay that time: a cold gallery of 30
+PNGs could add <b>minutes</b> to a page load. So this second pass is <b>not</b> run inline; it is handed to a
+<b>job</b> (<code>VaultTecMediaOptimizerThumbnailRecompress</code>) that recompresses the stored thumbnail in the
+background.</p>
+<div class="box"><b>Why command-line generation is better.</b> A job only helps if it is processed <b>off the
+visitor requests</b>. By default MediaWiki runs the queue at the end of a request (<code>$wgJobRunRate</code>),
+which pushes the heavy work back onto a visitor. The right setup is <code>$wgJobRunRate = 0;</code> plus a
+<code>runJobs.php</code> launched over <b>SSH/cron</b> (or the CLI backfill <code>optimizeImages.php</code>,
+§8.6). Then all heavy encoding runs on a dedicated server process, <b>never on a visitor's response time</b> —
+the same rule as for original optimization (§8.1). In <b>large-wiki mode</b> (<code>UseJobQueue = false</code>,
+§4.8), this job is not enqueued at all: the admin recompresses thumbnails on their own schedule.</div>
+
+<h1>9. Troubleshooting</h1>
+<h2>9.1 “is not a valid JSON file” at startup</h2>
+<p>The <code>extension.json</code> file was corrupted, usually by an ASCII-mode FTP transfer. Re-transfer it in binary
+mode, or unpack the archive directly on the server.</p>
+<h2>9.2 The statistics page shows an unknown-column error</h2>
+<p>The database migration wasn't applied (missing column or table). Run <code>update.php</code> (section 3.3). If
+another extension blocks the updater, apply the migration manually (section 3.3.1).</p>
+<h2>9.3 The recompression binary is not found (although it exists)</h2>
+<p>The most common cause is <code>open_basedir</code> preventing PHP from accessing a binary outside the allowed tree
+(typically in <code>/usr/bin/</code>). Copy the binary into a wiki folder and configure its absolute path (section 7).
+Other causes: the wrong configuration variable (with oxipng it is <code>…OxipngBinary</code>, not the zopfli one) — and
+check the exact case. “GLIBC not found” = the precompiled binary needs a newer glibc; compile it on the machine.</p>
+<h2>9.4 Recompression is very slow</h2>
+<p>The zopflipng engine is intrinsically slow, especially with a high iteration count on large files. Switch to
+<code>oxipng</code> (much faster), or lower the zopflipng iterations (e.g. to 5). The final size is very close, for a
+much shorter time (see §16).</p>
+<h2>9.5 Statistics look inconsistent during processing</h2>
+<p>This is normal: during a backfill or repair, the values change on every refresh. Wait until processing finishes
+(“Progress” at 100%) before interpreting them. The WebP total may also fluctuate temporarily, as the metadata refresh
+invalidates some thumbnails that are then regenerated.</p>
+<h2>9.6 An image is served as PNG/JPEG instead of WebP</h2>
+<p>Reload the page once (the first render generates the missing WebP), then reload again. Check the WebP directory's
+write permissions and that <code>OnDemandThumbLimit</code> &gt; 0. For an <b>animated GIF under GD</b>, the missing
+WebP is <b>intended</b> (§5.2) so as not to freeze the animation.</p>
+<h2>9.7 File permissions</h2>
+<p>Run maintenance scripts as the PHP user (often the same as the web server), never as <code>root</code>. Running as
+root creates root-owned files that PHP can no longer overwrite afterwards — a source of permission conflicts on later
+uploads.</p>
+
+<h1>10. Quick reference</h1>
+<h2>10.1 Database tables</h2>
+<table>
+<tr><th>Table</th><th>Role</th></tr>
+<tr><td><code>vtmo_image_optimization</code></td><td>One row per processed file: original/optimized/WebP sizes, status, etc.</td></tr>
+<tr><td><code>vtmo_zopfli_thumb_stats</code></td><td>Aggregate thumbnail-recompression savings.</td></tr>
+</table>
+<h2>10.2 Access right</h2>
+<p>The three special pages require <code>vaulttecmediaoptimizer-admin</code>, granted by default to the
+<code>sysop</code> group.</p>
+<h2>10.3 Maintenance scripts</h2>
+<table>
+<tr><th>Script</th><th>Role and options</th></tr>
+<tr><td><code>optimizeImages.php</code> <span class="badge">NEW</span></td><td>CLI backfill (first pass + WebP) without the queue; <code>--dry-run/--batch/--max/--start/--force/--format/--purge-queue</code>.</td></tr>
+<tr><td><code>purgeQueue.php</code> <span class="badge">NEW</span></td><td>Empties the Optimize queue (<code>--include-zopfli</code> for the second pass); <code>--dry-run</code>.</td></tr>
+<tr><td><code>recompressOriginals.php</code></td><td>Recompresses original PNGs with the configured engine; <code>--reset</code> to switch engines, <code>--dry-run/--max/--batch</code>.</td></tr>
+<tr><td><code>repairBloatedOriginals.php</code></td><td>Repairs inflated originals; <code>--dry-run/--max/--batch</code>.</td></tr>
+</table>
+
+<h1>11. Frequently asked questions</h1>
+<p><b>Does the extension change my image quality?</b><br>Not for originals: PNG optimization is strictly lossless
+(identical pixels), and PNG WebP files are generated losslessly by default. JPEGs are re-encoded at high quality (85
+by default), visually indistinguishable in the vast majority of cases. Tunable via <code>…WebPQuality</code>.</p>
+<p><b>What do visitors whose browser doesn't support WebP see?</b><br>The original image, intact. The
+<code>&lt;picture&gt;</code> tag offers WebP first but always keeps the original <code>&lt;img&gt;</code> as fallback.
+All recent browsers support WebP; the fallback only concerns very old ones.</p>
+<p><b>Must I enable the second pass (zopflipng/oxipng)?</b><br>No. The main benefit for visitors (lighter WebP) works
+without it. The second pass only adds disk-space savings on PNGs. Enable it if server storage is a concern.</p>
+<p><b>What's the difference between zopflipng and oxipng?</b><br>Both recompress PNGs losslessly. zopflipng compresses
+a little more but is very slow; oxipng is much faster for a result within a few percent. For bulk processing, oxipng is
+recommended.</p>
+<p><b>Can I change engine later?</b><br>Yes. Change <code>…PngEngine</code> at any time. Already-processed files are
+not reprocessed automatically, but any new processing (or a repair) uses the new engine.</p>
+<p><b>Are animated GIFs preserved?</b><br>Yes. <code>gifsicle</code> (§4.6) optimization is strictly lossless and
+animation-safe; and under GD, animated GIFs never get a frozen WebP/AVIF (§5.2). Without gifsicle, the GIF original is
+not touched at all.</p>
+<p><b>How much will I save?</b><br>It depends entirely on your media library. For visitors, WebP often cuts served
+image weight by 25–50% (see §16 for an honest, thumbnail-level figure). Disk savings on originals are more modest.</p>
+<p><b>Does it work with cloud storage (S3, Swift)?</b><br>The extension is designed for a local file system
+(<code>FSFileBackend</code>). Non-local backends are detected and reported on the status page; object storage is not
+supported as-is.</p>
+<p><b>An image looks broken after processing. What now?</b><br>Very rare thanks to the anti-bloat guard and the
+<code>&lt;img&gt;</code> fallback. If it happens, first check by accessing the thumbnail URL directly (it must return
+the image with an <code>image/png</code> type or equivalent). Then check the logs and section 9. Since the original is
+never deleted, no data is lost.</p>
+
+<h1>12. Uninstallation</h1>
+<p>The extension is designed to be removed cleanly, without leaving the wiki in a degraded state:</p>
+<ol>
+<li><b>Disable the extension</b>: remove (or comment out) the <code>wfLoadExtension( 'VaultTecMediaOptimizer' );</code>
+line and all <code>$wgVaultTecMediaOptimizer*</code> settings in <code>LocalSettings.php</code>.</li>
+<li><b>Purge the page cache</b>: pages then stop showing <code>&lt;picture&gt;</code> tags and revert to standard
+<code>&lt;img&gt;</code> tags pointing at the originals. Since the originals are intact, images display normally.</li>
+<li><b>(Optional) Delete the WebP files</b>: the <code>images_webp/</code> directory (and <code>images_avif/</code>)
+can be removed to reclaim space. It is no longer used once the extension is disabled.</li>
+<li><b>(Optional) Drop the tables</b>: if you won't reinstall, the tables can be dropped. Also remove the extension
+folder and the installed binaries.</li>
+</ol>
+<div class="box"><b>Important.</b> The original images are never deleted by the extension. After uninstall, your media
+library remains complete and functional. Only the (regenerable) WebP/AVIF versions disappear.</div>
+<pre>DROP TABLE IF EXISTS vtmo_zopfli_thumb_stats;
+DROP TABLE IF EXISTS vtmo_image_optimization;</pre>
+
+<h1>13. Security</h1>
+<h2>13.1 External binary execution</h2>
+<p>The external binaries (gifsicle, zopflipng, oxipng, vips) are invoked via <code>proc_open</code>/<code>exec</code>
+with arguments passed as an <b>array</b> (not a concatenated shell string), which avoids any shell interpretation and
+thus any command-injection risk. Binary paths come exclusively from the administrator's configuration, never from user
+input.</p>
+<h2>13.2 Path-traversal protection</h2>
+<p>On-demand WebP generation reads a thumbnail source and writes the corresponding WebP. To prevent a malicious
+filename from escaping the media tree, the extension rejects any name containing a traversal sequence
+(<code>..</code>), a path separator (<code>/</code> or <code>\</code>) or a NUL byte. Legitimate MediaWiki filenames
+never contain these characters.</p>
+<h2>13.3 Restriction to allowed types</h2>
+<p>Processing (optimization, WebP) is strictly limited to the configured MIME types (<code>image/png</code>,
+<code>image/jpeg</code>, <code>image/gif</code> by default). Any other file type is ignored. The maximum processed size
+is also capped by <code>…MaxFileSize</code>.</p>
+<h2>13.4 Access rights</h2>
+<p>The three special pages (status, backfill, statistics) are restricted to users holding the
+<code>vaulttecmediaoptimizer-admin</code> right, granted by default only to the <code>sysop</code> group. Sensitive
+actions (launching a backfill, recompression) are therefore not accessible to ordinary users.</p>
+<h2>13.5 Harmlessness of generated markup</h2>
+<p>The HTML rewrite merely wraps existing <code>&lt;img&gt;</code> tags in a <code>&lt;picture&gt;</code> and adds a
+WebP/AVIF source. The image's original attributes are preserved as-is, and URLs are systematically encoded. No
+arbitrary data is injected into the HTML.</p>
+
+<h1>14. Glossary</h1>
+<table>
+<tr><th>Term</th><th>Definition</th></tr>
+<tr><td>WebP</td><td>Modern image format with better compression than PNG and JPEG, lossy or lossless. Supported by all recent browsers.</td></tr>
+<tr><td>AVIF</td><td>Often smaller than WebP on photos at equal quality (AV1 codec), but slower encoding and encoder-dependent. Experimental here (§4.9).</td></tr>
+<tr><td>Lossless</td><td>Compression that preserves the exact original data: the decompressed image is strictly identical. The case of the extension's PNG and GIF/gifsicle optimization.</td></tr>
+<tr><td>Lossy</td><td>Compression that drops information to reduce size, at the cost of slight alteration. Used for JPEG and, optionally, the WebP of JPEGs.</td></tr>
+<tr><td>Thumbnail</td><td>A resized version of an image, generated by MediaWiki for display in pages (this is what is actually served).</td></tr>
+<tr><td>picture tag</td><td>HTML element offering several image sources to the browser, which picks the most suitable. Used here to serve WebP/AVIF with a fallback to the original.</td></tr>
+<tr><td>Backfill</td><td>Processing files already present at install time, as opposed to new uploads handled automatically.</td></tr>
+<tr><td>Hook</td><td>A MediaWiki extension point letting an extension react to an event (upload, thumbnail generation, page render, etc.).</td></tr>
+<tr><td>JobQueue</td><td>MediaWiki's mechanism for running work in the background, off web requests, so as not to slow page rendering.</td></tr>
+<tr><td>libvips</td><td>A fast, memory-light image library/CLI (optional engine, §4.7).</td></tr>
+<tr><td>gifsicle</td><td>An external lossless GIF optimizer, animation-safe (§4.6).</td></tr>
+<tr><td>open_basedir</td><td>A PHP directive restricting accessible directories. A common cause of blocking for binaries outside the site tree.</td></tr>
+<tr><td>zopflipng / oxipng</td><td>External lossless PNG recompression tools. zopflipng favours maximum compression, oxipng speed.</td></tr>
+</table>
+
+<h1>15. Step-by-step tutorial (from zero to production)</h1>
+<p>This tutorial walks, in order, through every step to install the extension, configure it, process an existing media
+library, and verify the result. The example paths (<code>/var/www/.../httpdocs</code>) are to be adapted to your
+installation.</p>
+<div class="box"><b>Before you start.</b> You need <b>SSH</b> access to your server and admin access to the wiki. With
+FTP only, some steps (running scripts, installing a binary) won't be possible: a shell is required for bulk
+processing.</div>
+<h2>Step 1 — Install the extension files</h2>
+<pre>cd /var/www/vhosts/your-wiki/httpdocs/extensions
+unzip /path/to/VaultTecMediaOptimizer.zip
+ls VaultTecMediaOptimizer/extension.json   # must exist</pre>
+<p>Over FTP: transfer in <b>binary mode</b> (ASCII corrupts <code>extension.json</code> → “is not a valid JSON file”).</p>
+<h2>Step 2 — Enable the extension</h2>
+<pre>wfLoadExtension( 'VaultTecMediaOptimizer' );</pre>
+<h2>Step 3 — Create the database tables</h2>
+<pre>php maintenance/run.php update --quick</pre>
+<p>If it fails because of another extension, see section 3.3.1 to apply the migration manually.</p>
+<h2>Step 4 — Check status with the diagnostics page</h2>
+<p>Open <b>Special:VTMOStatus</b>. The rows for PHP, MediaWiki, the image library and the file system must be green.
+The second-pass PNG section may be amber (not configured) — normal and non-blocking. Only proceed once the essential
+checks are green.</p>
+<h2>Step 5 — Understand what will be optimized</h2>
+<table>
+<tr><th>Type</th><th>Processing</th></tr>
+<tr><td>PNG</td><td>Lossless on upload, further recompressible via oxipng/zopflipng. WebP generated.</td></tr>
+<tr><td>JPEG</td><td>Optimized on upload (Imagick re-encode, quality preserved — not strictly lossless). WebP generated.</td></tr>
+<tr><td>GIF</td><td>Lossless via <code>gifsicle</code> if enabled (§4.6), animation preserved; otherwise original untouched. WebP generated (animated under Imagick/libvips).</td></tr>
+</table>
+<div class="box"><b>The JPEG case, transparently.</b> JPEG original optimization goes through Imagick, which re-encodes
+the image: the Huffman-table step is lossless, but the re-encode itself is not 100% lossless. The extension preserves
+the original quality so the loss is invisible, and keeps the result only if smaller. If you require strictly lossless
+JPEG optimization, remove <code>image/jpeg</code> from <code>…Formats</code> (JPEG WebP will still be generated) and use
+a dedicated tool such as <code>jpegtran</code> outside the extension. Either way, visitors receive the WebP, unaffected
+by this nuance.</div>
+<h2>Step 6 — Run the backfill of existing files</h2>
+<p>New uploads are handled automatically, but files already present must be backfilled. Use <b>Special:VTMOBackfill</b>
+(queue) or, recommended for large wikis, the CLI (§8.6). Make sure the queue is processed, e.g. in a
+<code>screen</code>:</p>
+<pre>screen -S vtmo-jobs
+php maintenance/run.php runJobs.php --type VaultTecMediaOptimizerOptimizeImage</pre>
+<p>Follow progress on <b>Special:VTMOStats</b>.</p>
+<h2>Step 7 (optional) — Install a PNG recompression engine</h2>
+<p>To save more disk on PNGs, install oxipng (fast) or zopflipng (slower). Optional, storage-only. See section 7,
+especially the <code>open_basedir</code> trap. This is also when to enable <b>gifsicle</b> (§4.6) and/or
+<b>libvips</b> (§4.7) if desired.</p>
+<h2>Step 8 (optional) — Recompress existing PNGs</h2>
+<pre>screen -S vtmo-png
+/opt/plesk/php/8.4/bin/php /abs/wiki/maintenance/run.php \
+  /abs/wiki/extensions/VaultTecMediaOptimizer/maintenance/recompressOriginals.php</pre>
+<div class="box"><b>Common pitfall — “Script not found”.</b> Don't use a relative path: depending on the current
+directory, MediaWiki mis-concatenates paths and looks for the script under <code>maintenance/extensions/…</code>.
+Always give the <b>absolute path</b> of the script and of <code>run.php</code>.</div>
+<p>For best compression, then switch to zopflipng and re-run with <code>--reset</code> (§8.3).</p>
+<h2>Step 9 — Verify WebP is served to visitors</h2>
+<pre>&lt;picture&gt;
+  &lt;source srcset="/images_webp/....webp" type="image/webp"&gt;
+  &lt;img src="/images/....png" ...&gt;
+&lt;/picture&gt;</pre>
+<p>If an image is still served as PNG/JPEG, reload the page once (the first render generates the missing WebP), then
+reload again.</p>
+<h2>Step 10 — Purge caches at the end</h2>
+<p>Once the backfill and any recompression are done, purge the wiki page cache <b>and</b> the CDN, so pages reflect the
+final state.</p>
+<div class="box"><b>Order matters.</b> Purge <b>after</b> processing completes, not during. Purging mid-repair is
+counter-productive: thumbnails being invalidated would be re-cached in their old version.</div>
+<h3>Quick recap</h3>
+<ol>
+<li>Unpack into <code>extensions/</code> (binary FTP).</li>
+<li><code>wfLoadExtension( 'VaultTecMediaOptimizer' );</code></li>
+<li><code>php maintenance/run.php update --quick</code>.</li>
+<li>Check <b>Special:VTMOStatus</b> (all green).</li>
+<li>Run the backfill (queue or CLI <code>optimizeImages.php</code>).</li>
+<li>(Optional) install/enable gifsicle, libvips, oxipng.</li>
+<li>(Optional) <code>recompressOriginals.php</code>, then zopflipng finishing with <code>--reset</code>.</li>
+<li>Verify the <code>&lt;picture&gt;</code> tags on a few pages.</li>
+<li>Purge caches (wiki + CDN) at the end.</li>
+</ol>
+
+<h1>16. Benchmarks — cost / benefit <span class="badge">NEW</span></h1>
+<p>Two families of figures. <b>(A)</b> a <b>cost/benefit model</b> of the real wiki, recomputed from explicit
+assumptions; <b>(B)</b> <b>real measurements</b> on the test box (PHP 8.4, libvips 8.15.1, ImageMagick 6.9.12,
+gifsicle 1.94, zopflipng, PHP-GD; <b>single core</b>). Reproducible via <code>docs/benchmarks/model.py</code> and
+<code>tests/integration/pipeline.php</code>.</p>
+<div class="box"><b>Model assumptions</b> (decimal units; 365 d/yr): originals <b>52.62 GB</b> of PNG+JPEG; traffic
+<b>upper bound (cold cache)</b> of <b>100k views/day × 10 thumbnails</b>; average served thumbnail 55.3 KB; lossless
+thumbnail optimization −13.7%; WebP of thumbnail −34% (≈ −43% vs raw); original recompression −7/−16/−24%
+(low/median/high); WebP copies ≈ 70% of the optimized original, stored <b>in addition</b>.</div>
+<p class="small"><b>Honest framing.</b> Pages serve <b>thumbnails</b> (already small), not originals, and WebP
+<b>adds</b> disk. We separate <i>served bandwidth</i> (the real benefit) from <i>per-file compression</i>.</p>
+<h2>16.1 Served bandwidth — the real benefit</h2>
+<img class="chart" src="benchmarks/01-bandwidth.png" alt="Bandwidth per day">
+<p class="fcap">~55 → ~31 GB/day (−43%), ~8.7 TB/year — cold-cache upper bound.</p>
+<img class="chart" src="benchmarks/05-cache-reality.png" alt="Cache reality">
+<p class="fcap">The −43% ratio is robust; the absolute TB/year shrinks with browser/CDN caching.</p>
+<h2>16.2 Disk: WebP adds to it</h2>
+<img class="chart" src="benchmarks/03-disk-occupied.png" alt="Disk occupied">
+<img class="chart" src="benchmarks/02-disk-change.png" alt="Disk change">
+<img class="chart" src="benchmarks/04-tradeoff.png" alt="Trade-off">
+<p class="fcap">Disk goes up (52.6 → ~75 GB median); the trade-off is a one-time disk cost (~+22 GB) vs a recurring bandwidth saving.</p>
+<h2>16.3 Per-file compression (measured) — ≠ bandwidth</h2>
+<img class="chart" src="benchmarks/06-webp-by-category.png" alt="WebP by category">
+<img class="chart" src="benchmarks/08-webp-lossless-engine.png" alt="Lossless WebP by engine">
+<img class="chart" src="benchmarks/07-avif-vs-webp.png" alt="AVIF vs WebP">
+<p class="fcap">Per-file gains (not traffic); the engine matters (GD ≈ 2.7× larger lossless); at equal quality AVIF is not systematically smaller (content/encoder-dependent).</p>
+<h2>16.4 GIF &amp; 2nd-pass PNG (disk)</h2>
+<img class="chart" src="benchmarks/09-gif-gifsicle.png" alt="GIF gifsicle">
+<img class="chart" src="benchmarks/10-png-passes.png" alt="PNG passes">
+<p class="fcap">gifsicle −60 to −66% (lossless, ~20 ms); zopflipng second pass ~−12% disk but slow (~14 s).</p>
+<h2>16.5 Engine: memory, speed, throughput</h2>
+<img class="chart" src="benchmarks/11-engine-memory.png" alt="Engine memory">
+<img class="chart" src="benchmarks/12-engine-time.png" alt="Engine time">
+<img class="chart" src="benchmarks/13-throughput-profile.png" alt="Throughput by profile">
+<p class="fcap">Measured at the extension's real modes (PNG→lossless WebP, JPEG→q85): libvips uses less memory everywhere (esp. thumbnails); ~40× faster only on JPEG thumbnails (shrink-on-load), NOT faster on big lossless PNG. Throughput ~245→~65 img/min by media richness.</p>
+
+</body></html>
+

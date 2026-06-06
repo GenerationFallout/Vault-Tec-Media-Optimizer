@@ -49,6 +49,13 @@ class HtmlRewriter {
 	private OptimizerFactory $optimizerFactory;
 	private LoggerInterface $logger;
 
+	/**
+	 * Remaining budget of synchronous on-demand WebP generations for the current
+	 * rewrite() call. Reset at the start of each call. Bounds worst-case render
+	 * latency when many thumbnails still lack a WebP (cold cache).
+	 */
+	private int $onDemandRemaining = 0;
+
 	public function __construct(
 		ServiceOptions $options,
 		WebPRepo $webpRepo,
@@ -81,6 +88,11 @@ class HtmlRewriter {
 			return;
 		}
 
+		// Reset the per-render budget for synchronous on-demand WebP generation.
+		// Existing WebP files are always served; this only caps how many *missing*
+		// ones we encode inline during this single page render.
+		$this->onDemandRemaining = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
+
 		// Find all <img ... src="..." ...> with their offsets in the original text.
 		// We capture both the full tag and the src URL, plus the byte offset of
 		// each match (PREG_OFFSET_CAPTURE).
@@ -98,6 +110,13 @@ class HtmlRewriter {
 		if ( !$matchCount ) {
 			return;
 		}
+
+		// Pre-compute the byte ranges of every existing <picture> block in one
+		// linear pass, so the idempotency check below is both correct and cheap
+		// (no per-image rescans). This replaces the old fixed 500-byte lookback,
+		// which could miss a wrapper whose <source>/attributes pushed the inner
+		// <img> past the window and then double-wrap it.
+		$pictureRanges = $this->buildPictureRanges( $text );
 
 		// Process matches in REVERSE order so that replacement offsets earlier
 		// in the string remain valid as we splice in <picture> wrappers.
@@ -118,7 +137,7 @@ class HtmlRewriter {
 			}
 
 			// Idempotency: skip if this <img> is already inside a <picture>.
-			if ( $this->isInsidePicture( $text, $offset ) ) {
+			if ( $this->offsetInsidePictureRange( $offset, $pictureRanges ) ) {
 				continue;
 			}
 
@@ -196,8 +215,12 @@ class HtmlRewriter {
 	private function ensureWebP( array $info ): bool {
 		$webpPath = $info[1];
 
-		// Already present — nothing to do (the common case after warm-up).
-		if ( is_file( $webpPath ) ) {
+		// Already present AND non-empty — serve it (the common case after
+		// warm-up). A leftover 0-byte/truncated WebP (e.g. from an interrupted
+		// pre-atomic write, disk-full, or tampering) is treated as missing: a
+		// <source> pointing at it would break the image with no fallback, so we
+		// regenerate instead.
+		if ( is_file( $webpPath ) && filesize( $webpPath ) > 0 ) {
 			return true;
 		}
 
@@ -205,6 +228,16 @@ class HtmlRewriter {
 		// URL shapes that don't resolve a source can't be generated on demand.
 		$srcThumbPath = $info[2] ?? null;
 		if ( $srcThumbPath === null || !is_file( $srcThumbPath ) || !is_readable( $srcThumbPath ) ) {
+			return false;
+		}
+
+		// Budget guard (P1): cap how many missing WebP files we encode inline
+		// during this single render. Once the budget is spent, leave the <img>
+		// untouched — its WebP will be generated on a subsequent view (or by the
+		// FileTransformed hook when MediaWiki next regenerates the thumbnail),
+		// so the cache still warms up, just without front-loading the cost onto
+		// one unlucky visitor.
+		if ( $this->onDemandRemaining <= 0 ) {
 			return false;
 		}
 
@@ -233,6 +266,9 @@ class HtmlRewriter {
 				[ 'dest' => $webpPath ] );
 			return false;
 		}
+
+		// We are committing to an encode: spend one unit of the render budget.
+		$this->onDemandRemaining--;
 
 		try {
 			$optimizer = $this->optimizerFactory->getOptimizer();
@@ -293,24 +329,72 @@ class HtmlRewriter {
 	}
 
 	/**
+	 * Compute the byte ranges spanned by every <picture>...</picture> block in
+	 * $text, in a single linear pass.
+	 *
+	 * Nested <picture> is invalid HTML and never emitted, so we treat the markup
+	 * as flat: each <picture ...> opens a region that the next </picture> closes.
+	 * The returned ranges are in ascending order of start offset.
+	 *
+	 * @param string $text
+	 * @return list<array{0:int,1:int}> [openStart, closeEnd) byte ranges
+	 */
+	private function buildPictureRanges( string $text ): array {
+		if ( stripos( $text, '<picture' ) === false ) {
+			return [];
+		}
+		if ( !preg_match_all( '/<picture[\s>]|<\/picture\s*>/i', $text, $m, PREG_OFFSET_CAPTURE ) ) {
+			return [];
+		}
+		$ranges = [];
+		$openStart = null;
+		foreach ( $m[0] as [ $token, $pos ] ) {
+			// "</picture>" starts with "</"; "<picture " / "<picture>" do not.
+			$isClose = isset( $token[1] ) && $token[1] === '/';
+			if ( !$isClose ) {
+				// Flat model: only the first open of an unclosed run counts.
+				if ( $openStart === null ) {
+					$openStart = $pos;
+				}
+			} elseif ( $openStart !== null ) {
+				$ranges[] = [ $openStart, $pos + strlen( $token ) ];
+				$openStart = null;
+			}
+		}
+		return $ranges;
+	}
+
+	/**
+	 * Whether a byte offset falls inside one of the given <picture> ranges.
+	 *
+	 * @param int $offset
+	 * @param list<array{0:int,1:int}> $ranges Ascending [start, end) ranges
+	 * @internal
+	 */
+	public function offsetInsidePictureRange( int $offset, array $ranges ): bool {
+		foreach ( $ranges as [ $start, $end ] ) {
+			if ( $offset >= $start && $offset < $end ) {
+				return true;
+			}
+			// Ranges are sorted: once a range starts past the offset, stop.
+			if ( $start > $offset ) {
+				break;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Check if the byte offset is inside a <picture>...</picture> wrapper.
 	 *
-	 * We look at the substring before $offset and check whether the most
-	 * recent <picture is closed by </picture> or still open. Bounded
-	 * lookback of 500 chars to avoid scanning huge documents.
+	 * Correct for wrappers of any size (no fixed lookback window). Standalone
+	 * callers pay a single O(n) scan; the hot path in rewrite() pre-computes the
+	 * ranges once and calls {@see offsetInsidePictureRange} directly.
 	 *
 	 * @internal
 	 */
 	public function isInsidePicture( string $text, int $offset ): bool {
-		$lookbackStart = max( 0, $offset - 500 );
-		$slice = substr( $text, $lookbackStart, $offset - $lookbackStart );
-		$lastOpen = strrpos( $slice, '<picture' );
-		if ( $lastOpen === false ) {
-			return false;
-		}
-		$lastClose = strrpos( $slice, '</picture>' );
-		// Inside <picture> if there's no close after the last open
-		return $lastClose === false || $lastClose < $lastOpen;
+		return $this->offsetInsidePictureRange( $offset, $this->buildPictureRanges( $text ) );
 	}
 
 	/**
