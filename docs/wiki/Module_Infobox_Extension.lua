@@ -25,26 +25,13 @@ p.name  = 'Extension'
 p.class = 'avt-infobox-extension'
 p.style = { ['width'] = '22em' }
 
--- Couleur de fond de l'en-tête selon l'état déclaré
-local stateStyle = {
-	['stable']       = { ['background-color'] = '#2d6a2d', ['color'] = '#ffffff' },
-	['bêta']         = { ['background-color'] = '#7a6000', ['color'] = '#ffffff' },
-	['beta']         = { ['background-color'] = '#7a6000', ['color'] = '#ffffff' },
-	['expérimental'] = { ['background-color'] = '#7a3500', ['color'] = '#ffffff' },
-	['obsolète']     = { ['background-color'] = '#555555', ['color'] = '#cccccc' },
-}
-
 p.parts = {
 
 	-- ── En-tête ──────────────────────────────────────────────────────────────
 	{
 		type  = 'title',
 		value = 'nom',
-		-- Couleur dynamique selon |état=
-		style = function(localdata)
-			local etat = localdata['état'] or localdata['etat'] or ''
-			return stateStyle[etat:lower()] or { ['background-color'] = '#3b1e08', ['color'] = '#ffd700' }
-		end,
+		style = { ['background-color'] = '#3b1e08', ['color'] = '#ffd700' },
 	},
 
 	-- ── Image / logo ─────────────────────────────────────────────────────────

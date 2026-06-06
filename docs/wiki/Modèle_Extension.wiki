@@ -1,4 +1,4 @@
-<includeonly>{{#invoke:Infobox|build}}</includeonly><noinclude>
+<includeonly>{{#invoke:Infobox|build|nom=Extension}}</includeonly><noinclude>
 == Utilisation ==
 Ce modèle affiche l'infobox standard pour les extensions MediaWiki.
 
