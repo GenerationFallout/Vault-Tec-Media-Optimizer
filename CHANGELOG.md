@@ -5,6 +5,26 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.3]
+
+### 🇫🇷 Résumé
+Corrige une **incompatibilité avec libvips < 8.12** (ex. 8.10.5 de Debian Bullseye). L'optimiseur vips passait
+en dur `--effort 6` à `webpsave`, option **renommée** (`--reduction-effort` → `--effort`) seulement en libvips
+8.12 : sur un build plus ancien, *chaque* encodage WebP via vips échouait avec « Unknown option --effort »
+(`vips webpsave exited with code 1`), bloquant notamment **toutes les conversions de GIF animés**. L'extension
+**détecte désormais une fois** le nom d'option accepté par le binaire (`--effort`, sinon `--reduction-effort`,
+sinon aucun) et l'utilise. Aucune image n'était corrompue par ce bug : un échec d'encodage n'écrit aucun WebP,
+donc l'original (GIF animé compris) restait servi tel quel.
+
+### Fixed
+- **libvips < 8.12 compatibility (`webpsave --effort`)** — `VipsOptimizer` hard-coded `--effort 6`, an option
+  that libvips only renamed from `--reduction-effort` to `--effort` in 8.12. On older builds (e.g. 8.10.5 on
+  Debian Bullseye) every vips WebP encode aborted with "Unknown option --effort", which surfaced as
+  `vips webpsave exited with code 1` and broke **all animated-GIF → WebP** conversions when the `vips` engine was
+  selected. The encoder now **probes once** which flag name the binary accepts (preferring `--effort`, falling
+  back to `--reduction-effort`, then to no flag = libwebp's default effort) and reuses it. No data was ever at
+  risk: a failed encode writes no WebP, so the original asset kept being served.
+
 ## [1.8.2]
 
 ### 🇫🇷 Résumé

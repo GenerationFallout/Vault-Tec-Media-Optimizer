@@ -42,6 +42,8 @@ class VipsOptimizer implements OptimizerInterface {
 	private ?bool $available = null;
 	/** @var string|null Resolved binary path/name. */
 	private ?string $binary = null;
+	/** @var string[]|null Memoized webpsave "effort" flag args for this build. */
+	private ?array $webpEffortArgs = null;
 
 	public function __construct( ServiceOptions $options, LoggerInterface $logger ) {
 		$this->options = $options;
@@ -160,6 +162,49 @@ class VipsOptimizer implements OptimizerInterface {
 		return false;
 	}
 
+	/**
+	 * Resolve, once, the webpsave "encode effort" flag this vips build accepts.
+	 *
+	 * libvips renamed the option from `--reduction-effort` to `--effort` in
+	 * 8.12. Passing `--effort` to an older build (e.g. 8.10.5 on Debian
+	 * Bullseye) aborts webpsave with "Unknown option --effort", which would
+	 * fail EVERY WebP encode — including animated GIFs. We probe a tiny image
+	 * to find the name this binary recognises, preferring the modern one, and
+	 * fall back to no flag at all (libwebp's default effort) when neither is
+	 * accepted. Memoized for the process.
+	 *
+	 * @return string[] One of ['--effort','6'], ['--reduction-effort','6'], []
+	 */
+	private function webpEffortArgs(): array {
+		if ( $this->webpEffortArgs !== null ) {
+			return $this->webpEffortArgs;
+		}
+		$resolved = [];
+		$base = sys_get_temp_dir() . '/vtmo-effortprobe';
+		$src = $this->uniqueTempPath( $base . '.png' );
+		$dst = $this->uniqueTempPath( $base . '.webp' );
+		if ( $this->runVips( [ 'black', $src, '16', '16' ] ) === 0 && is_file( $src ) ) {
+			foreach ( [ '--effort', '--reduction-effort' ] as $flag ) {
+				if ( is_file( $dst ) ) {
+					@unlink( $dst );
+				}
+				if ( $this->runVips( [ 'webpsave', $src, $dst, $flag, '6' ] ) === 0
+					&& is_file( $dst ) && filesize( $dst ) > 0
+				) {
+					$resolved = [ $flag, '6' ];
+					break;
+				}
+			}
+		}
+		foreach ( [ $src, $dst ] as $p ) {
+			if ( is_file( $p ) ) {
+				@unlink( $p );
+			}
+		}
+		$this->webpEffortArgs = $resolved;
+		return $resolved;
+	}
+
 	public function convertToWebP( string $sourcePath, string $destPath, bool $lossless, int $quality ): bool {
 		$this->lastError = null;
 		if ( !$this->supportsWebP() ) {
@@ -174,7 +219,7 @@ class VipsOptimizer implements OptimizerInterface {
 		$loadArg = $sourcePath . ( $srcExt === 'gif' ? '[n=-1]' : '' );
 
 		$tmp = $this->uniqueTempPath( $destPath );
-		$args = [ 'webpsave', $loadArg, $tmp, '--effort', '6' ];
+		$args = array_merge( [ 'webpsave', $loadArg, $tmp ], $this->webpEffortArgs() );
 		if ( $lossless ) {
 			$args[] = '--lossless';
 		} else {
