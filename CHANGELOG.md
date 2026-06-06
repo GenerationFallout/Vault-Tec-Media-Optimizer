@@ -5,6 +5,31 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.8.4]
+
+### 🇫🇷 Résumé
+Deux robustesses issues d'un audit en conditions réelles sur un gros wiki. **(1)** Un GIF **animé** que le moteur
+n'arrive pas à encoder en WebP/AVIF animé (certains builds libvips/libwebp refusent les animations trop
+longues/grosses) n'est plus traité comme un **échec** : on conserve le GIF d'origine (déjà optimisé `gifsicle`,
+sans perte) et on enregistre un succès **sans WebP** — exactement comme la garde GIF animé du backend GD.
+L'animation reste servie. **(2)** Nouveau script `repairCorruptedFilenames.php` pour réparer les **originaux dont
+le nom de fichier sur le disque a dérivé** de celui en base (mojibake hérité d'une migration), que MediaWiki **et**
+l'optimiseur signalent en « file not found ». Appariement prudent par *squelette ASCII* + unicité, dry-run par défaut.
+
+### Fixed
+- **Animated GIF → WebP failure is no longer a hard error** — when the selected engine cannot encode a given
+  animated GIF to animated WebP (e.g. older libvips/libwebp rejecting large/long animations), `ImageProcessor`
+  now keeps the lossless gifsicle-optimized original and records **complete with no WebP** instead of `failed`,
+  mirroring the existing GD animated-GIF guard. The animation keeps being served; only its WebP derivative is
+  skipped for that file.
+
+### Added
+- **`maintenance/repairCorruptedFilenames.php`** — repairs local originals whose physical on-disk filename no
+  longer matches the DB name (Unicode/mojibake from a past migration), which makes both MediaWiki and the
+  optimizer report "file not found". Conservative: matches a single same-directory file by its ASCII skeleton
+  (drops bytes ≥ 0x80 and `%XX` escapes), renames only on an unambiguous match, never overwrites, dry-run unless
+  `--apply`, and logs every rename for reversal. Options: `--apply`, `--format`, `--limit`.
+
 ## [1.8.3]
 
 ### 🇫🇷 Résumé

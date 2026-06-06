@@ -237,6 +237,24 @@ class ImageProcessor {
 			$ok = $optimizer->convertToWebP( $path, $webpPath, $lossless, $quality );
 			if ( !$ok ) {
 				$detail = $optimizer->getLastError();
+				// An animated GIF that the backend cannot encode to animated WebP
+				// must NOT be a hard failure: some libvips/libwebp builds reject
+				// certain animations (frame-count / size limits). Keep the already
+				// losslessly gifsicle-optimized original and record success with no
+				// WebP — same outcome as the GD animated-GIF guard above. The
+				// animation keeps being served; we just forgo its WebP derivative.
+				if ( $mime === 'image/gif' && GifAnimationDetector::isAnimated( $path ) ) {
+					$this->record->markComplete(
+						$imgName, $originalSize, $optimizedSize, 0, $optimizer->getName()
+					);
+					$this->logger->info(
+						'Animated GIF {name}: kept original (backend {backend} could not '
+							. 'encode animated WebP: {err}); no WebP generated',
+						[ 'name' => $imgName, 'backend' => $optimizer->getName(),
+							'err' => $detail ?? 'no detail' ]
+					);
+					return true;
+				}
 				$msg = $detail !== null
 					? "WebP conversion failed: $detail"
 					: 'WebP conversion failed (no detail available)';
