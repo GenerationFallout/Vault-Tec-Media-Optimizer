@@ -1,0 +1,176 @@
+{{Extension
+| nom              = Vault-Tec Media Optimizer
+| état             = stable
+| type1            = média
+| type2            = page spéciale
+| hook1            = UploadComplete
+| hook2            = FileUpload
+| hook3            = FileTransformed
+| hook4            = FileDeleteComplete
+| hook5            = OutputPageBeforeHTML
+| description      = Optimisation d'images sans perte et diffusion automatique de WebP (et AVIF expérimental) via une balise {{tag|picture}}.
+| auteur           = Archives de Vault-Tec
+| dernière version = 1.8.4
+| licence          = GPL-2.0-or-later
+| download         = {{GithubDownload|generationfallout|vault-tec-media-optimizer}}
+| mediawiki        = ≥ 1.43
+| php              = ≥ 8.1
+| exemple          = https://fallout-wiki.com
+}}
+
+L'extension '''Vault-Tec Media Optimizer''' (VTMO) allège les médias du wiki de deux façons complémentaires :
+
+* '''Optimisation sans perte''' des fichiers d'origine (PNG, JPEG, et GIF via <code>gifsicle</code>) — les pixels restent identiques, seul le poids disque baisse.
+* '''Génération de WebP''' (et d''''AVIF''' en option expérimentale) servis automatiquement aux navigateurs compatibles via une balise <code><nowiki><picture></nowiki></code>, avec repli intégral sur l'image d'origine. C'est le vrai gain : '''bande passante''' et rapidité pour les visiteurs.
+
+Les nouveaux fichiers sont traités automatiquement à l'envoi ; un '''rattrapage''' (''backfill'') traite l'existant, via la file de tâches '''ou''' en ligne de commande. Tout tourne sur le serveur, sans aucune dépendance cloud.
+
+== Fonctionnalités ==
+* WebP servi via <code><nowiki><picture></nowiki></code> (avec <code>srcset</code> Retina), repli intact sur l'<code><nowiki><img></nowiki></code> d'origine.
+* WebP des miniatures '''à la création''' ''et'' '''à la demande''' au rendu (couvre les tailles déjà présentes sur le disque).
+* Optimisation des originaux : PNG, JPEG, et '''GIF sans perte''' via <code>gifsicle -O3</code> (sûr pour l'animation).
+* '''2{{e}} passe PNG''' sans perte optionnelle : <code>zopflipng</code> ou <code>oxipng</code>, déportée dans un '''job d'arrière-plan''' (aucune latence pour le visiteur).
+* '''Moteur d'image sélectionnable''' : <code>auto</code> (Imagick → GD) ou <code>vips</code> (libvips, bien plus rapide et léger à grande échelle).
+* '''Mode gros wiki''' : traitement en ligne de commande sans saturer la file de tâches.
+* Écritures '''atomiques''' (fichier temporaire + ''rename'') : aucun fichier dérivé tronqué n'est jamais servi, même sous forte concurrence.
+* '''AVIF expérimental''' (branche dédiée) avec garde « keep-if-smaller » : l'AVIF n'est servi que s'il est plus léger que le WebP.
+* Trois pages spéciales (diagnostic, rattrapage, statistiques) pour piloter le tout.
+
+== Installation ==
+# [https://github.com/generationfallout/vault-tec-media-optimizer Télécharger] et placer le dossier <code>VaultTecMediaOptimizer</code> dans le répertoire <code>extensions/</code>.
+# Ajouter le code suivant au bas de <code>LocalSettings.php</code> :
+<syntaxhighlight lang="php">
+wfLoadExtension( 'VaultTecMediaOptimizer' );
+</syntaxhighlight>
+# Exécuter le script de mise à jour pour créer les tables :
+<syntaxhighlight lang="bash">
+php maintenance/run.php update --quick
+</syntaxhighlight>
+# Vérifier '''[[Spécial:VaultTec_État]]''' (tout au vert), puis lancer le rattrapage depuis '''[[Spécial:VaultTec_Optimisation]]'''.
+# {{Fait}} '''Terminé''' — Naviguer sur le wiki pour vérifier que tout fonctionne.
+
+== Dépendances externes (optionnelles) ==
+Aucune n'est obligatoire ; chacune débloque une capacité supplémentaire. Sous Debian/Ubuntu :
+
+{| class="wikitable"
+! Binaire !! Apporte !! Installation
+|-
+| <code>gifsicle</code> || Optimisation GIF sans perte (1{{re}} passe) || <code>apt install gifsicle</code>
+|-
+| <code>vips</code> (libvips) || Moteur d'image rapide/léger || <code>apt install libvips-tools</code>
+|-
+| <code>zopflipng</code> || 2{{e}} passe PNG (compression maximale) || paquet <code>zopfli</code> ou binaire dédié
+|-
+| <code>oxipng</code> || 2{{e}} passe PNG (rapide, multi-thread) || binaire dédié
+|}
+
+{{Remarque|Lancer ensuite les commandes de traitement '''avec le même utilisateur système que le serveur web''' (souvent <code>www-data</code>) pour éviter les problèmes de permissions sur les fichiers générés.}}
+
+== Configuration ==
+Toutes les variables sont optionnelles et ont une valeur par défaut sûre.
+
+{| class="wikitable"
+! Variable !! Défaut !! Rôle
+|-
+| <code>$wgVaultTecMediaOptimizerEnabled</code> || <code>true</code> || Active/désactive l'extension.
+|-
+| <code>$wgVaultTecMediaOptimizerFormats</code> || <code>png, jpeg, gif</code> || Types MIME traités.
+|-
+| <code>$wgVaultTecMediaOptimizerOptimizeOriginals</code> || <code>true</code> || Optimise les originaux sur place (sans perte).
+|-
+| <code>$wgVaultTecMediaOptimizerImageEngine</code> || <code>auto</code> || Moteur d'image : <code>auto</code> (Imagick→GD) ou <code>vips</code>.
+|-
+| <code>$wgVaultTecMediaOptimizerVipsBinary</code> || <code>vips</code> || Chemin/nom du binaire libvips.
+|-
+| <code>$wgVaultTecMediaOptimizerWebPQuality</code> || <code>85</code> || Qualité WebP (JPEG/GIF lossy).
+|-
+| <code>$wgVaultTecMediaOptimizerWebPLosslessForPng</code> || <code>true</code> || WebP sans perte pour les PNG.
+|-
+| <code>$wgVaultTecMediaOptimizerWebPDirectory</code> || <code>images_webp</code> || Dossier des WebP (frère de <code>images/</code>).
+|-
+| <code>$wgVaultTecMediaOptimizerGifsicleEnabled</code> || <code>false</code> || Active l'optimisation GIF via <code>gifsicle</code>.
+|-
+| <code>$wgVaultTecMediaOptimizerGifsicleLevel</code> || <code>3</code> || Niveau gifsicle (1–3 ; 3 = le plus agressif, sans perte).
+|-
+| <code>$wgVaultTecMediaOptimizerZopfliEnabled</code> || <code>false</code> || Active la 2{{e}} passe PNG.
+|-
+| <code>$wgVaultTecMediaOptimizerPngEngine</code> || <code>zopflipng</code> || Moteur 2{{e}} passe : <code>zopflipng</code> ou <code>oxipng</code>.
+|-
+| <code>$wgVaultTecMediaOptimizerZopfliIterations</code> || <code>15</code> || Itérations zopflipng (plus = plus petit, plus lent).
+|-
+| <code>$wgVaultTecMediaOptimizerStripMetadata</code> || <code>true</code> || Retire les métadonnées à l'optimisation.
+|-
+| <code>$wgVaultTecMediaOptimizerProcessThumbnails</code> || <code>true</code> || Génère le WebP des miniatures.
+|-
+| <code>$wgVaultTecMediaOptimizerOnDemandThumbLimit</code> || <code>5</code> || Budget de miniatures traitées à la demande par rendu.
+|-
+| <code>$wgVaultTecMediaOptimizerUseJobQueue</code> || <code>true</code> || Traitement via la file de tâches (mettre à <code>false</code> en mode gros wiki).
+|-
+| <code>$wgVaultTecMediaOptimizerMaxFileSize</code> || <code>52428800</code> || Taille max traitée (octets, 50 Mo).
+|-
+| <code>$wgVaultTecMediaOptimizerBackfillBatchSize</code> || <code>20</code> || Taille de lot du rattrapage.
+|}
+
+=== Exemple : configuration « performance » ===
+<syntaxhighlight lang="php">
+wfLoadExtension( 'VaultTecMediaOptimizer' );
+
+// Moteur rapide
+$wgVaultTecMediaOptimizerImageEngine = 'vips';
+
+// GIF sans perte
+$wgVaultTecMediaOptimizerGifsicleEnabled = true;
+
+// 2e passe PNG maximale (sans perte) — déportée en job
+$wgVaultTecMediaOptimizerZopfliEnabled = true;
+$wgVaultTecMediaOptimizerPngEngine     = 'zopflipng';
+</syntaxhighlight>
+
+== Pages spéciales ==
+{| class="wikitable"
+! Page !! Alias français !! Rôle
+|-
+| <code>Special:VTMOStatus</code> || [[Spécial:VaultTec_État]] || Diagnostic : dépendances, moteur actif, espace disque.
+|-
+| <code>Special:VTMOBackfill</code> || [[Spécial:VaultTec_Optimisation]] || Rattrapage des fichiers existants.
+|-
+| <code>Special:VTMOStats</code> || [[Spécial:VaultTec_Statistiques]] || Statistiques et fichiers en échec.
+|}
+
+== Scripts de maintenance ==
+À lancer via <code>maintenance/run.php</code> :
+
+{| class="wikitable"
+! Script !! Rôle
+|-
+| <code>optimizeImages.php</code> || Rattrapage en ligne de commande (1{{re}} passe + WebP), sans la file. Option <code>--format=gif</code>, <code>--dry-run</code>, <code>--force</code>…
+|-
+| <code>purgeQueue.php</code> || Vide les files de tâches de l'extension.
+|-
+| <code>recompressOriginals.php</code> || Recompression PNG (2{{e}} passe) des originaux existants.
+|-
+| <code>repairBloatedOriginals.php</code> || Répare des originaux qui auraient grossi.
+|-
+| <code>repairCorruptedFilenames.php</code> || Répare les originaux dont le nom de fichier sur le disque a dérivé de celui en base (mojibake de migration).
+|}
+
+'''Exemple''' — ne traiter (sans perte) que les GIF existants :
+<syntaxhighlight lang="bash">
+php maintenance/run.php \
+  extensions/VaultTecMediaOptimizer/maintenance/optimizeImages.php --format=gif
+</syntaxhighlight>
+
+== Fonctionnement ==
+# À l'envoi d'un fichier, un '''job d'arrière-plan''' optimise l'original et génère le WebP (le rendu de page n'attend jamais ce travail).
+# Au rendu d'une page, l'extension réécrit les <code><nowiki><img></nowiki></code> en <code><nowiki><picture></nowiki></code> : le navigateur reçoit le WebP/AVIF s'il existe sur le disque, sinon l'image d'origine.
+# Le service est décidé par la '''présence du fichier dérivé sur le disque''' : aucune image figée/tronquée n'est jamais servie. Un GIF animé que le moteur ne peut pas encoder en WebP reste servi en GIF animé.
+
+== Compatibilité ==
+* MediaWiki '''≥ 1.43''', PHP '''≥ 8.1'''.
+* Compatible avec '''MultimediaViewer''', '''MediaUploader''', '''TimedMediaHandler''' et '''PageImages'''.
+* Repli automatique et gracieux : si une dépendance optionnelle manque, la capacité correspondante est simplement sautée.
+
+== Voir aussi ==
+* [https://github.com/generationfallout/vault-tec-media-optimizer Dépôt GitHub] (code, manuel PDF bilingue, benchmarks honnêtes, journal des modifications).
+
+[[Catégorie:Extensions]]
