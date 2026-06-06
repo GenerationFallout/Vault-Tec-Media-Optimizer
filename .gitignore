@@ -1,0 +1,27 @@
+# Dependencies
+/vendor/
+/node_modules/
+composer.lock
+package-lock.json
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs & temporary files
+*.log
+*.tmp
+*.bak
+*.orig
+
+# Documentation build intermediates (the committed PDFs are regenerated
+# from docs/*.src.html and docs/benchmarks/model.py; keep transient
+# wkhtmltopdf / matplotlib scratch files out of the repo)
+*.pdf.tmp
+docs/**/*.aux
+docs/**/.cache/
