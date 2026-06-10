@@ -21,9 +21,49 @@ class WebPRepo {
 	private ServiceOptions $options;
 	private LoggerInterface $logger;
 
+	/** @var string|null Memoized, validated WebP directory name. */
+	private ?string $webpDirName = null;
+
 	public function __construct( ServiceOptions $options, LoggerInterface $logger ) {
 		$this->options = $options;
 		$this->logger = $logger;
+	}
+
+	/**
+	 * The configured WebP directory name, validated.
+	 *
+	 * This name is the ONLY thing separating our derived-file tree (which we
+	 * freely create, overwrite and recursively purge — see deleteWebPThumbDir)
+	 * from MediaWiki's real upload tree. A careless config can break that
+	 * separation:
+	 *  - same name as the upload directory's basename → getRootDir() IS the
+	 *    upload dir, and the reupload purge would delete MediaWiki's REAL
+	 *    thumbnails;
+	 *  - empty, '.'/'..' or a value containing path separators → the tree
+	 *    lands somewhere malformed or outside the wiki.
+	 * Such values are rejected and replaced with a safe default, loudly.
+	 */
+	private function webpDirName(): string {
+		if ( $this->webpDirName !== null ) {
+			return $this->webpDirName;
+		}
+		$name = (string)$this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
+		$uploadBase = basename( rtrim( (string)$this->options->get( 'UploadDirectory' ), '/' ) );
+		$invalid = $name === '' || $name === '.' || $name === '..'
+			|| strpbrk( $name, '/\\' ) !== false
+			|| strpos( $name, "\0" ) !== false
+			|| $name === $uploadBase;
+		if ( $invalid ) {
+			$fallback = $uploadBase === 'images_webp' ? 'images_webp_vtmo' : 'images_webp';
+			$this->logger->error(
+				'Invalid $wgVaultTecMediaOptimizerWebPDirectory {value} (empty, contains a path '
+					. 'separator, or collides with the upload directory name {upload}); using {fallback}',
+				[ 'value' => $name, 'upload' => $uploadBase, 'fallback' => $fallback ]
+			);
+			$name = $fallback;
+		}
+		$this->webpDirName = $name;
+		return $name;
 	}
 
 	/**
@@ -31,7 +71,7 @@ class WebPRepo {
 	 */
 	public function getRootDir(): string {
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
-		$webpDirName = $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
+		$webpDirName = $this->webpDirName();
 		$parent = dirname( $uploadDir );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
 			return '/' . $webpDirName;
@@ -55,7 +95,7 @@ class WebPRepo {
 	 */
 	public function getRootUrl(): string {
 		$uploadPath = rtrim( $this->options->get( 'UploadPath' ), '/' );
-		$webpDirName = $this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
+		$webpDirName = $this->webpDirName();
 		$parent = dirname( $uploadPath );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
 			return '/' . $webpDirName;

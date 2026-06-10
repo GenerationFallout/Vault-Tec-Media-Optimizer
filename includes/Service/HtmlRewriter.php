@@ -95,8 +95,12 @@ class HtmlRewriter {
 
 		// Reset the per-render budget for synchronous on-demand WebP generation.
 		// Existing WebP files are always served; this only caps how many *missing*
-		// ones we encode inline during this single page render.
-		$this->onDemandRemaining = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
+		// ones we encode inline during this single page render. Hard-capped at
+		// 100: this budget exists precisely to bound cold-render latency, so an
+		// absurd config value (e.g. 10000) must not be able to turn one page
+		// view into thousands of synchronous encodes (self-inflicted DoS).
+		$this->onDemandRemaining = min( 100,
+			(int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' ) );
 
 		// Find all <img ... src="..." ...> with their offsets in the original text.
 		// We capture both the full tag and the src URL, plus the byte offset of
@@ -284,7 +288,11 @@ class HtmlRewriter {
 			$optimizer = $this->optimizerFactory->getOptimizer();
 			$lossless = ( $mime === 'image/png' )
 				&& (bool)$this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+			// Clamp to libwebp's 0-100 range: GD throws a ValueError on negative
+			// values and a non-numeric config casts to 0; misconfiguration must
+			// not break every encode.
+			$quality = min( 100, max( 0,
+				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
 
 			$ok = $optimizer->convertToWebP( $srcThumbPath, $webpPath, $lossless, $quality );
 			if ( !$ok ) {

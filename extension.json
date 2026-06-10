@@ -183,7 +183,7 @@
 		},
 		"VaultTecMediaOptimizerMaxFileSize": {
 			"value": 52428800,
-			"description": "Skip files larger than this (bytes). Default 50MB."
+			"description": "Skip files larger than this (bytes). Default 50MB. CAUTION: 0 (or any value <= 0) disables the limit entirely — huge files can then exhaust memory during processing."
 		},
 		"VaultTecMediaOptimizerOnDemandThumbLimit": {
 			"value": 5,
