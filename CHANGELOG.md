@@ -32,7 +32,33 @@ disque ; **(b)** à l'optimisation d'un original, un WebP non plus petit est **s
 sur disque comme **cache négatif** (pas de ré-encodage à chaque rendu, le budget on-demand n'est dépensé qu'une
 fois) mais jamais référencé.
 
+**Durcissement « admin qui fait n'importe quoi »** (audit de mauvaise utilisation, gardes vérifiées sur la vraie
+classe) : **(a)** `$wgVaultTecMediaOptimizerWebPDirectory` est désormais **validé** — vide, `..`, séparateurs de
+chemin, ou **le même nom que le dossier d'upload** (cas où la purge des vignettes WebP aurait visé les
+'''vraies''' vignettes de MediaWiki !) sont rejetés avec repli sur `images_webp` et erreur loggée ; **(b)** le
+budget on-demand est **plafonné à 100** par rendu (une valeur absurde ne peut plus transformer un rendu à froid
+en déni de service auto-infligé) ; **(c)** la **qualité WebP est bornée à 0–100** partout (GD jette une exception
+sur une valeur négative, vips encodait silencieusement en bouillie) ; **(d)** les 4 scripts de maintenance qui
+réécrivent des fichiers **préviennent s'ils tournent en root** (fichiers devenant root:root = réécritures
+impossibles ensuite) ; **(e)** la page de rattrapage **avertit** quand `UseJobQueue=false` (les jobs planifiés
+resteraient en file sans explication) ; **(f)** des entrées `Formats` invalides (« png » au lieu de
+« image/png ») sont signalées sur la page d'état au lieu d'un double échec silencieux.
+
 ### Changed
+- **Config hardening against careless values** —
+  `WebPDirectory` is validated in `WebPRepo` (empty, `.`/`..`, path separators, NUL, or a value equal to the
+  upload directory's basename — which would have aimed `deleteWebPThumbDir()` at MediaWiki's REAL thumbnail
+  tree — fall back to `images_webp`, logged as an error); the on-demand render budget is hard-capped at 100;
+  `WebPQuality` is clamped to 0–100 at every read (GD throws a `ValueError` on negatives — verified; vips
+  silently produces garbage quality at 0); maintenance scripts that rewrite files print a loud warning when
+  run as root (`posix_geteuid`); `Special:VTMOBackfill` shows a warning box when
+  `$wgVaultTecMediaOptimizerUseJobQueue` is disabled (scheduled jobs would otherwise sit "Queued" forever with
+  no explanation); `Special:VTMOStatus` flags `Formats` entries that are not full MIME types (a short name like
+  "png" silently matched nothing AND dropped the backfill's SQL filter); `MaxFileSize = 0` is now documented as
+  "no limit". The misuse audit also explicitly verified as already-safe: double-click/PRG on the backfill forms,
+  manual deletion or chmod of `images_webp/` while live, concurrent CLI runs, Ctrl+C atomicity, shell
+  metacharacters and `-`-leading filenames, XSS through file names, and a malicious `VipsBinary` (argv-array
+  proc_open: file paths are never passed to a foreign binary as deletion targets).
 - **Never-serve-larger policy** — a WebP is only ever delivered when it is **strictly smaller** than the file it
   replaces. Enforced at serve time in `HtmlRewriter` (size comparison before emitting the `<source>`; applies to
   pre-existing files too, so even a stale larger WebP is never referenced) and at generation time in

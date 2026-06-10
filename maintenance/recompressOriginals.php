@@ -75,6 +75,16 @@ class RecompressOriginals extends Maintenance {
 	}
 
 	public function execute() {
+		// Files this run rewrites in place (temp + rename) inherit THIS
+		// process's owner. Run as root and every optimized file becomes
+		// root-owned: the web server can then no longer rewrite it (future
+		// optimizations and even MediaWiki reuploads fail with permission
+		// errors, weeks later and silently). Warn loudly up front.
+		if ( function_exists( 'posix_geteuid' ) && posix_geteuid() === 0 ) {
+			$this->output( "WARNING: running as root. Files written by this run will be owned by\n" );
+			$this->output( "root and the web server will no longer be able to rewrite them.\n" );
+			$this->output( "Run as the web server user instead, e.g.: sudo -u www-data php ...\n\n" );
+		}
 		$services = MediaWikiServices::getInstance();
 		$record = $services->getService( 'VaultTecMediaOptimizer.OptimizationRecord' );
 		$recompressor = $services->getService( 'VaultTecMediaOptimizer.ZopfliRecompressor' );

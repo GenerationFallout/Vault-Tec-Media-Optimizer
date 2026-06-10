@@ -254,7 +254,10 @@ class MainHooks implements
 			$optimizer = $this->optimizerFactory->getOptimizer();
 			$lossless = ( $mime === 'image/png' )
 				&& $this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+			// Clamp to libwebp's 0-100 range (GD throws on negatives; vips
+			// silently clamps; a non-numeric value casts to 0).
+			$quality = min( 100, max( 0,
+				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
 
 			$ok = $optimizer->convertToWebP( $tmpThumbPath, $webpDest, $lossless, $quality );
 			if ( !$ok ) {

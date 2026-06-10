@@ -360,10 +360,19 @@ class PrerequisiteChecker {
 			$qualityOk ? null : 'Recommended: 80-90' );
 
 		$formats = $this->options->get( 'VaultTecMediaOptimizerFormats' );
+		// Entries must be full MIME types ("image/png"), not short names
+		// ("png"): a short name silently matches nothing in shouldSkip() AND
+		// drops the backfill's SQL MIME filter — everything gets scanned, then
+		// everything gets skipped. Surface the mistake here instead.
+		$badEntries = array_filter( (array)$formats,
+			static fn ( $f ) => !is_string( $f ) || strpos( $f, '/' ) === false );
 		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-mime-types',
-			self::STATUS_INFO,
+			$badEntries ? self::STATUS_WARN : self::STATUS_INFO,
 			implode( ', ', $formats ),
-			null );
+			$badEntries
+				? 'Invalid entries (must be full MIME types like "image/png", not short names): '
+					. implode( ', ', $badEntries )
+				: null );
 
 		$engine = strtolower( (string)$this->options->get( 'VaultTecMediaOptimizerImageEngine' ) );
 		$checks[] = $this->result( 'vaulttecmediaoptimizer-check-image-engine',

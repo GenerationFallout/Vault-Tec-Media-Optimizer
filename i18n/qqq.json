@@ -36,6 +36,7 @@
 	"vaulttecmediaoptimizer-status-action-stats": "Link label to the stats page.",
 	"vaulttecmediaoptimizer-backfill-title": "Page title for the backfill special page.",
 	"vaulttecmediaoptimizer-backfill-intro": "Intro paragraph on the backfill page.",
+	"vaulttecmediaoptimizer-backfill-queue-disabled-warning": "Warning box shown on Special:VTMOBackfill when the job-queue mode is disabled, explaining that scheduled jobs will not be processed automatically.",
 	"vaulttecmediaoptimizer-backfill-status-idle": "Backfill status: idle.",
 	"vaulttecmediaoptimizer-backfill-status-running": "Backfill status: running.",
 	"vaulttecmediaoptimizer-backfill-status-complete": "Backfill status: complete.",

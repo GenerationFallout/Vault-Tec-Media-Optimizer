@@ -36,6 +36,7 @@
 	"vaulttecmediaoptimizer-status-action-stats": "Voir les statistiques",
 	"vaulttecmediaoptimizer-backfill-title": "Vault-Tec : optimisation rétroactive des médias",
 	"vaulttecmediaoptimizer-backfill-intro": "Lance l'optimisation des images existantes du wiki. Le traitement s'effectue en arrière-plan via la file de jobs MediaWiki, sans bloquer le site.",
+	"vaulttecmediaoptimizer-backfill-queue-disabled-warning": "$wgVaultTecMediaOptimizerUseJobQueue est désactivé (mode gros wiki) : les tâches planifiées depuis cette page resteront dans la file tant que vous ne la traiterez pas vous-même (runJobs.php). Dans ce mode, la voie recommandée est la ligne de commande : maintenance/optimizeImages.php.",
 	"vaulttecmediaoptimizer-backfill-status-idle": "Aucune optimisation en cours",
 	"vaulttecmediaoptimizer-backfill-status-running": "Optimisation en cours",
 	"vaulttecmediaoptimizer-backfill-status-complete": "Optimisation terminée",
