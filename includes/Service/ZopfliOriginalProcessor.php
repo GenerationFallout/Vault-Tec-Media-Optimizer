@@ -102,17 +102,38 @@ class ZopfliOriginalProcessor {
 				$afterSize = $beforeSize;
 			}
 
+			// Keep MediaWiki metadata consistent BEFORE marking the row done.
+			// The previous order (mark, then best-effort refresh) meant a failed
+			// upgradeRow() left img_sha1/img_size permanently stale on a row that
+			// would never be reselected — exactly the desync this class exists to
+			// prevent. Now: if the bytes changed and the refresh fails, we do NOT
+			// mark; the row stays pending and the whole step is retried later
+			// (recompressing an already-optimal file then yields saved=0, and the
+			// staleness check below still triggers the refresh).
+			$bytesChanged = $saved > 0
+				// Retry path: an earlier run shrank the file but its refresh
+				// failed before the row was marked. The DB-recorded size then
+				// disagrees with the on-disk size.
+				|| ( method_exists( $file, 'getSize' ) && $file->getSize() !== $afterSize );
+
+			if ( $bytesChanged ) {
+				if ( !$this->refreshFileMetadata( $file ) ) {
+					$this->logger->warning(
+						'Zopfli: metadata refresh failed for {name}; leaving row pending for retry',
+						[ 'name' => $imgName ]
+					);
+					return false;
+				}
+				if ( $saved > 0 ) {
+					$this->logger->info( 'Zopfli saved {bytes} bytes on original {name}', [
+						'bytes' => $saved,
+						'name' => $imgName,
+					] );
+				}
+			}
+
 			// Record the zopfli size in our tracking table.
 			$this->record->markPngRecompressed( $imgName, (int)$afterSize );
-
-			if ( $saved > 0 ) {
-				// Keep MediaWiki metadata consistent: the file bytes changed.
-				$this->refreshFileMetadata( $file );
-				$this->logger->info( 'Zopfli saved {bytes} bytes on original {name}', [
-					'bytes' => $saved,
-					'name' => $imgName,
-				] );
-			}
 
 			return true;
 		} catch ( Throwable $e ) {
@@ -160,8 +181,12 @@ class ZopfliOriginalProcessor {
 	 * LocalFile::upgradeRow() recomputes size, sha1, width, height and metadata
 	 * from the actual file and writes them back to the `image` table. This is
 	 * exactly what we need after an in-place lossless recompression.
+	 *
+	 * @return bool False when the refresh threw — the caller must then NOT mark
+	 *  the row as processed, so the file is retried and never left with a stale
+	 *  img_sha1 behind a "done" marker.
 	 */
-	private function refreshFileMetadata( $file ): void {
+	private function refreshFileMetadata( $file ): bool {
 		try {
 			if ( method_exists( $file, 'purgeCache' ) ) {
 				$file->purgeCache();
@@ -170,11 +195,13 @@ class ZopfliOriginalProcessor {
 			if ( method_exists( $file, 'upgradeRow' ) ) {
 				$file->upgradeRow();
 			}
+			return true;
 		} catch ( Throwable $e ) {
 			$this->logger->warning( 'Zopfli: metadata refresh failed for {name}: {msg}', [
 				'name' => $file->getName(),
 				'msg' => $e->getMessage(),
 			] );
+			return false;
 		}
 	}
 }

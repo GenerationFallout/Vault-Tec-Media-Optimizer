@@ -54,6 +54,17 @@ class GdOptimizer implements OptimizerInterface {
 		$this->lastError = null;
 		$tmp = null;
 		try {
+			// GD decodes every PNG to 8 bits per channel (and may even
+			// re-palettize): re-saving a 16-bit PNG through GD permanently
+			// truncates it (verified: a 16-bit gradient came back 4-bit).
+			// The IHDR bit-depth byte sits at offset 24. Skip >8-bit files —
+			// "in-place lossless optimization" must never alter pixel data.
+			$depthByte = @file_get_contents( $path, false, null, 24, 1 );
+			if ( $depthByte !== false && $depthByte !== '' && ord( $depthByte ) > 8 ) {
+				$this->lastError = 'PNG bit depth > 8: GD would truncate it (skipped)';
+				return false;
+			}
+
 			$img = @imagecreatefrompng( $path );
 			if ( !$img ) {
 				return false;
@@ -93,6 +104,21 @@ class GdOptimizer implements OptimizerInterface {
 		$this->lastError = null;
 		$tmp = null;
 		try {
+			// imagejpeg() writes zero EXIF: a camera JPEG displayed upright via
+			// its Orientation tag (2-8) would be rewritten with the tag gone
+			// but the pixels NOT rotated — permanently sideways/mirrored. Skip
+			// such files under GD (Imagick/vips deployments handle them).
+			if ( function_exists( 'exif_read_data' ) ) {
+				$exif = @exif_read_data( $path );
+				if ( is_array( $exif )
+					&& isset( $exif['Orientation'] ) && (int)$exif['Orientation'] > 1
+				) {
+					$this->lastError = 'JPEG carries EXIF Orientation ' . (int)$exif['Orientation']
+						. ': GD would drop it without rotating pixels (skipped)';
+					return false;
+				}
+			}
+
 			$img = @imagecreatefromjpeg( $path );
 			if ( !$img ) {
 				return false;

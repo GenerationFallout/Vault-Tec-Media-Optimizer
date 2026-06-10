@@ -267,6 +267,24 @@ class ImageProcessor {
 				$webpSize = 0;
 			}
 
+			// 3b. Never keep a derivative that is not strictly smaller than the
+			// (already optimized) original: serving it would make the visitor
+			// download MORE bytes — an anti-optimization. Happens routinely for
+			// lossless WebP of a well-compressed PNG or WebP of a tiny GIF.
+			// Delete it and record success with no WebP, exactly like the
+			// animated-GIF-without-WebP outcome; the original keeps being
+			// served. (HtmlRewriter applies the same strictly-smaller guard at
+			// serve time, so even a stale larger file is never referenced.)
+			if ( $webpSize > 0 && $webpSize >= $optimizedSize ) {
+				@unlink( $webpPath );
+				$this->logger->info(
+					'WebP of {name} ({webp} B) not smaller than the original ({orig} B); '
+						. 'discarded — the original stays the served asset',
+					[ 'name' => $imgName, 'webp' => $webpSize, 'orig' => $optimizedSize ]
+				);
+				$webpSize = 0;
+			}
+
 			// 4. Record success
 			$this->record->markComplete(
 				$imgName,

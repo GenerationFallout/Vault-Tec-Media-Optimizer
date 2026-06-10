@@ -41,6 +41,11 @@ use Psr\Log\LoggerInterface;
  * produces a broken image. So we only emit <picture> when the WebP file
  * exists on disk. The is_file() check is one stat() per image, cached by
  * the OS — negligible cost.
+ *
+ * Never-serve-larger: a WebP is only ever referenced when it is STRICTLY
+ * smaller than the file it replaces (see isWorthServing). A larger encode
+ * is kept on disk as a negative cache (so the on-demand budget is not
+ * re-spent every render) but the visitor always gets the smaller asset.
  */
 class HtmlRewriter {
 
@@ -207,26 +212,31 @@ class HtmlRewriter {
 	 * the extension, and whether or not it is ever regenerated.
 	 *
 	 * Only the sizes pages truly use are generated (no blind disk sweep). The
-	 * result is cached on disk, so generation happens at most once per size.
+	 * result is cached on disk, so generation happens at most once per size —
+	 * including when the encode turns out NOT worth serving (see below): the
+	 * file is kept on disk as a negative cache so the budget is never spent
+	 * twice on the same size.
 	 *
 	 * @param array{0:string,1:string,2?:string} $info [webpUrl, webpDiskPath, srcThumbPath]
-	 * @return bool True if the WebP exists (already or after generation)
+	 * @return bool True if the WebP exists AND is worth serving (strictly
+	 *  smaller than the file it would replace)
 	 */
 	private function ensureWebP( array $info ): bool {
 		$webpPath = $info[1];
+		$srcThumbPath = $info[2] ?? null;
 
-		// Already present AND non-empty — serve it (the common case after
-		// warm-up). A leftover 0-byte/truncated WebP (e.g. from an interrupted
-		// pre-atomic write, disk-full, or tampering) is treated as missing: a
-		// <source> pointing at it would break the image with no fallback, so we
-		// regenerate instead.
+		// Already present AND non-empty — the common case after warm-up. A
+		// leftover 0-byte/truncated WebP (e.g. from an interrupted pre-atomic
+		// write, disk-full, or tampering) is treated as missing: a <source>
+		// pointing at it would break the image with no fallback, so we
+		// regenerate instead. A present file is still subject to the
+		// never-serve-larger guard below.
 		if ( is_file( $webpPath ) && filesize( $webpPath ) > 0 ) {
-			return true;
+			return $this->isWorthServing( $webpPath, $srcThumbPath );
 		}
 
 		// We need the source thumbnail path to generate from. Older callers or
 		// URL shapes that don't resolve a source can't be generated on demand.
-		$srcThumbPath = $info[2] ?? null;
 		if ( $srcThumbPath === null || !is_file( $srcThumbPath ) || !is_readable( $srcThumbPath ) ) {
 			return false;
 		}
@@ -285,7 +295,17 @@ class HtmlRewriter {
 				return false;
 			}
 			$this->logger->debug( 'On-demand WebP generated: {dest}', [ 'dest' => $webpPath ] );
-			return is_file( $webpPath );
+			// Same guard as the fast path above: a 0-byte result (disk full
+			// mid-write) must not be referenced — a <picture> <source> that
+			// 404s/breaks has no fallback to the inner <img>. A valid-but-larger
+			// result is deliberately KEPT on disk (negative cache: the fast path
+			// re-evaluates it for free next render, no budget re-spent) but not
+			// served.
+			clearstatcache( true, $webpPath );
+			if ( !is_file( $webpPath ) || filesize( $webpPath ) === 0 ) {
+				return false;
+			}
+			return $this->isWorthServing( $webpPath, $srcThumbPath );
 		} catch ( \Throwable $e ) {
 			$this->logger->warning( 'On-demand WebP generation error for {src}: {msg}', [
 				'src' => $srcThumbPath,
@@ -293,6 +313,31 @@ class HtmlRewriter {
 			] );
 			return false;
 		}
+	}
+
+	/**
+	 * Never serve a derivative that is not strictly smaller than the file it
+	 * replaces: a WebP at-or-above the source size is an anti-optimization —
+	 * the visitor would download MORE bytes than with the original.
+	 *
+	 * Comparison requires both sizes. When the source is missing on disk
+	 * (e.g. MediaWiki purged the thumbnail but our WebP remains, with the
+	 * 404 handler set to regenerate on request), the WebP is served as
+	 * before: we only refuse when we can PROVE it is not smaller.
+	 *
+	 * @param string $webpPath Existing, non-empty WebP file
+	 * @param string|null $srcPath The file the <source> would replace
+	 */
+	private function isWorthServing( string $webpPath, ?string $srcPath ): bool {
+		if ( $srcPath === null || !is_file( $srcPath ) ) {
+			return true;
+		}
+		$webpSize = filesize( $webpPath );
+		$srcSize = filesize( $srcPath );
+		if ( $webpSize === false || $srcSize === false ) {
+			return true;
+		}
+		return $webpSize < $srcSize;
 	}
 
 	/**

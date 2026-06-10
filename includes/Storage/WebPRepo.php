@@ -83,6 +83,12 @@ class WebPRepo {
 				return null;
 			}
 			$relative = substr( $originalPath, strlen( $uploadDir ) );
+			// Unlike the realpath branch above, nothing has normalized this
+			// path yet: a "../" segment would map to (and via deleteWebP()
+			// potentially unlink) a file OUTSIDE images_webp. Reject it.
+			if ( strpos( $relative, '..' ) !== false || strpos( $relative, "\0" ) !== false ) {
+				return null;
+			}
 		} else {
 			if ( strpos( $realOriginal, $realUploadDir ) !== 0 ) {
 				return null;
@@ -113,8 +119,9 @@ class WebPRepo {
 	 *
 	 * @param string $originalUrl E.g. /images/a/ab/File.png, /images/thumb/a/ab/File.png/220px-File.png,
 	 *                            /thumb.php?f=File.png&width=220, or a full URL containing those.
-	 * @return array{0: string, 1: string}|null [webpUrl, webpDiskPath], or null
-	 *                                          if the URL is not from the upload area
+	 * @return array{0: string, 1: string, 2: string}|null
+	 *         [webpUrl, webpDiskPath, srcThumbPath], or null if the URL is not
+	 *         from the upload area
 	 */
 	public function getWebPUrlAndPath( string $originalUrl ): ?array {
 		// Branch 1: thumb.php?f=NAME&width=W (or &w=W) — common when
@@ -167,11 +174,17 @@ class WebPRepo {
 		$rootDir = $this->getRootDir();
 		$webpDiskRelative = $this->resolveDiskVariant( $rootDir, $webpRelativeDecoded, $webpRelativeEncoded );
 
-		// URL — must be percent-encoded
-		if ( $originalUrl !== $path ) {
-			// Recompute the prefix that was stripped (handles "https://host/" + path)
-			$prefixLen = strlen( $originalUrl ) - strlen( $relative ) - strlen( $uploadPath ) - 1;
-			$origin = substr( $originalUrl, 0, max( 0, $prefixLen ) );
+		// URL — must be percent-encoded. The origin prefix ("https://host") is
+		// whatever precedes $path in the original URL. Length arithmetic against
+		// $originalUrl is WRONG here: a stripped query string would inflate the
+		// computed length and corrupt the prefix (e.g. "/images/F.png?x=1"
+		// yielded "/ima"). $path is the exact substring that follows the origin,
+		// so "everything before $path's length, counted from the end" is exact —
+		// but simplest and provably right: the origin is $originalUrl up to the
+		// first occurrence of $path.
+		$pathPos = strpos( $originalUrl, $path );
+		if ( $pathPos !== false && $pathPos > 0 ) {
+			$origin = substr( $originalUrl, 0, $pathPos );
 			$webpUrl = $origin . $this->getRootUrl() . '/' . $webpRelativeEncoded;
 		} else {
 			$webpUrl = $this->getRootUrl() . '/' . $webpRelativeEncoded;
@@ -381,6 +394,59 @@ class WebPRepo {
 		}
 
 		return [ true, "Directory $dir created successfully." ];
+	}
+
+	/**
+	 * Delete every per-size WebP thumbnail of a file, i.e. the whole
+	 * images_webp/thumb/<a>/<ab>/<imgName>/ directory.
+	 *
+	 * Called on reupload and on full deletion: thumbnails are regenerated at
+	 * the SAME paths, so without this purge the skip-if-exists guard in
+	 * onFileTransformed would keep serving WebP rendered from the previous
+	 * image's pixels forever.
+	 *
+	 * The directory name on disk may be stored decoded or URL-encoded depending
+	 * on the FileBackend config (same duality as resolveDiskVariant), so both
+	 * variants are removed.
+	 *
+	 * @param string $imgName DB key, e.g. "Vault_door.png"
+	 * @return bool True if nothing was left behind (or nothing existed)
+	 */
+	public function deleteWebPThumbDir( string $imgName ): bool {
+		// Defensive: a path separator or traversal in a DB key should be
+		// impossible, but this method recursively deletes a directory.
+		if ( $imgName === '' || strpos( $imgName, '/' ) !== false
+			|| strpos( $imgName, '\\' ) !== false
+			|| strpos( $imgName, '..' ) !== false
+			|| strpos( $imgName, "\0" ) !== false
+		) {
+			return false;
+		}
+		$hash = md5( $imgName );
+		$hashDir = substr( $hash, 0, 1 ) . '/' . substr( $hash, 0, 2 );
+		$ok = true;
+		foreach ( array_unique( [ $imgName, rawurlencode( $imgName ) ] ) as $dirName ) {
+			$dir = $this->getRootDir() . '/thumb/' . $hashDir . '/' . $dirName;
+			if ( !is_dir( $dir ) ) {
+				continue;
+			}
+			$entries = @scandir( $dir );
+			if ( $entries === false ) {
+				$ok = false;
+				continue;
+			}
+			foreach ( $entries as $entry ) {
+				if ( $entry === '.' || $entry === '..' ) {
+					continue;
+				}
+				// Flat directory of per-size .webp files; never recurse further.
+				if ( !@unlink( $dir . '/' . $entry ) ) {
+					$ok = false;
+				}
+			}
+			@rmdir( $dir );
+		}
+		return $ok;
 	}
 
 	/**

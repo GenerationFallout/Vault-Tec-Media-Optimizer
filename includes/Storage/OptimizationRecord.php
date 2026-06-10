@@ -118,6 +118,7 @@ class OptimizationRecord {
 			->set( $row )
 			->caller( __METHOD__ )
 			->execute();
+		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -145,6 +146,7 @@ class OptimizationRecord {
 			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
+		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -167,6 +169,7 @@ class OptimizationRecord {
 			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
+		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -449,16 +452,24 @@ class OptimizationRecord {
 		// Anti-inflation invariant: the recorded optimized size must never end
 		// up larger than the original size, otherwise the row stays in the
 		// "optimized > original" (bloated) selection and the repair script
-		// loops on it. We therefore write LEAST(trueSize, io_original_size).
-		// LEAST is supported by MySQL/MariaDB, SQLite and PostgreSQL.
-		$least = new \Wikimedia\Rdbms\RawSQLValue(
-			'LEAST(' . (int)$trueSize . ', io_original_size)'
-		);
+		// loops on it. SQLite has NO LEAST() function (its scalar equivalent is
+		// multi-argument MIN(), verified: "no such function: LEAST"), so we
+		// read io_original_size and compute the clamp in PHP — two statements
+		// on a single-row repair path, portable everywhere.
+		$origSize = $db->newSelectQueryBuilder()
+			->select( 'io_original_size' )
+			->from( self::TABLE )
+			->where( [ 'io_img_name' => $imgName ] )
+			->caller( __METHOD__ )
+			->fetchField();
+		$clamped = $origSize !== false && $origSize !== null
+			? min( (int)$trueSize, (int)$origSize )
+			: (int)$trueSize;
 		$db->newUpdateQueryBuilder()
 			->update( self::TABLE )
 			->set( [
-				'io_optimized_size' => $least,
-				'io_png_zopfli_size' => $least,
+				'io_optimized_size' => $clamped,
+				'io_png_zopfli_size' => $clamped,
 			] )
 			->where( [ 'io_img_name' => $imgName ] )
 			->caller( __METHOD__ )
