@@ -265,6 +265,11 @@ class MainHooks implements
 					'detail' => $detail,
 				] );
 			} else {
+				// A WebP that came out LARGER than the thumbnail is deliberately
+				// kept on disk: the skip-if-exists guard above then prevents
+				// re-encoding it on every regeneration, and HtmlRewriter's
+				// strictly-smaller serve guard guarantees it is never referenced
+				// in <picture> — the visitor always receives the smaller asset.
 				$this->logger->debug( 'Generated WebP thumb {dest}',
 					[ 'dest' => $webpDest ] );
 			}

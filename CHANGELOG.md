@@ -22,6 +22,30 @@ n'existent que depuis 1.44 ; sur 1.43 chaque upload fatalait). Plus : la 2e pass
 **SHA-1 en base** avant tout rename, et `$wgVaultTecMediaOptimizerFormats` est enfin restreignable
 (`merge_strategy`).
 
+**Nouvelle politique « jamais plus gros »** : un WebP qui n'est pas **strictement plus petit** que le fichier
+qu'il remplace n'est **jamais servi**. Un WebP lossless d'un PNG déjà bien compressé (ou le WebP d'un GIF
+minuscule à aplats) ressort couramment **plus gros** que la source : le servir faisait télécharger **plus**
+d'octets au visiteur. Désormais : **(a)** au rendu, le rewriter compare les tailles et ne référence le WebP dans
+`<picture>` que s'il est strictement plus petit — c'est la garantie, valable aussi pour les fichiers déjà sur
+disque ; **(b)** à l'optimisation d'un original, un WebP non plus petit est **supprimé** et la ligne enregistrée
+« complete » avec WebP = 0 (comme un GIF animé sans WebP) ; **(c)** un WebP de vignette plus gros est conservé
+sur disque comme **cache négatif** (pas de ré-encodage à chaque rendu, le budget on-demand n'est dépensé qu'une
+fois) mais jamais référencé.
+
+### Changed
+- **Never-serve-larger policy** — a WebP is only ever delivered when it is **strictly smaller** than the file it
+  replaces. Enforced at serve time in `HtmlRewriter` (size comparison before emitting the `<source>`; applies to
+  pre-existing files too, so even a stale larger WebP is never referenced) and at generation time in
+  `ImageProcessor` (a not-smaller WebP of an original is deleted and the row recorded complete with `webp = 0`,
+  mirroring the animated-GIF-without-WebP outcome). Thumbnail WebPs that come out larger are deliberately kept
+  on disk as a negative cache — the skip-if-exists guard and the on-demand budget are not re-spent every
+  render — but are never referenced in `<picture>`. When the source file is missing on disk the comparison is
+  impossible and the WebP is served as before: the guard only refuses when it can prove the WebP is not smaller.
+- **`tests/integration/gifAnimatedWebp.php` extended (25 checks)** — now asserts both sides of the policy over
+  real files: a flat-color still GIF whose WebP encodes larger ends up with the WebP discarded and `webp = 0`
+  recorded, while a photo-like (plasma gradient) GIF whose WebP is genuinely smaller keeps it, with the served
+  derivative verified strictly smaller than the original.
+
 ### Fixed
 - **Deleting an OLD file version no longer destroys the live file's WebP and DB record** — `onFileDeleteComplete`
   ignored `$oldimage` (non-null when only an old revision is deleted) and unconditionally removed the current

@@ -163,7 +163,7 @@ php maintenance/run.php \
 == Fonctionnement ==
 # À l'envoi d'un fichier, un '''job d'arrière-plan''' optimise l'original et génère le WebP (le rendu de page n'attend jamais ce travail).
 # Au rendu d'une page, l'extension réécrit les <code><nowiki><img></nowiki></code> en <code><nowiki><picture></nowiki></code> : le navigateur reçoit le WebP/AVIF s'il existe sur le disque, sinon l'image d'origine.
-# Le service est décidé par la '''présence du fichier dérivé sur le disque''' : aucune image figée/tronquée n'est jamais servie. Un GIF animé que le moteur ne peut pas encoder en WebP reste servi en GIF animé.
+# Le service est décidé par la '''présence du fichier dérivé sur le disque''' et par sa taille : un dérivé n'est servi que s'il est '''strictement plus petit''' que l'image qu'il remplace — le visiteur ne télécharge jamais plus d'octets qu'avec l'original. Aucune image figée/tronquée n'est jamais servie. Un GIF animé que le moteur ne peut pas encoder en WebP reste servi en GIF animé.
 
 == Compatibilité ==
 * MediaWiki '''≥ 1.43''', PHP '''≥ 8.1'''.
