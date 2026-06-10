@@ -5,6 +5,70 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.9.0]
+
+### 🇫🇷 Résumé
+Correctifs issus d'un audit complet vérifié en conditions réelles. Les plus importants : **(1)** supprimer une
+**ancienne version** d'un fichier ne détruit plus le WebP (et le suivi) du fichier **courant** — le hook ignorait
+`$oldimage`. **(2)** Le **détecteur de GIF animé** est réécrit en vrai parseur de blocs (en flux) : l'ancienne
+heuristique regex ratait des GIF animés légaux (sans extension de boucle, ou sans GCE), qui étaient alors
+**flattés en WebP figé** sous GD — prouvé sur fichiers réels. **(3)** Au **réupload**, les WebP de vignettes de
+l'ancienne image (mêmes chemins) sont purgés au lieu d'être servis indéfiniment. **(4)** Sous GD, les **PNG
+16-bit** (tronqués en 4-bit, vérifié) et les **JPEG à orientation EXIF** (tag perdu sans rotation) sont désormais
+refusés au lieu d'être dégradés en place. **(5)** Statistiques réparables sur **SQLite** (`LEAST()` n'y existe
+pas). **(6)** La version MediaWiki minimale passe à **1.44** (les classes `MediaWiki\JobQueue\*` utilisées
+n'existent que depuis 1.44 ; sur 1.43 chaque upload fatalait). Plus : la 2e passe ne marque plus une ligne
+« terminée » si la resynchronisation des métadonnées MediaWiki échoue, `repairCorruptedFilenames` vérifie le
+**SHA-1 en base** avant tout rename, et `$wgVaultTecMediaOptimizerFormats` est enfin restreignable
+(`merge_strategy`).
+
+### Fixed
+- **Deleting an OLD file version no longer destroys the live file's WebP and DB record** — `onFileDeleteComplete`
+  ignored `$oldimage` (non-null when only an old revision is deleted) and unconditionally removed the current
+  original's WebP and its `vtmo_image_optimization` row. Early-return added.
+- **Animated-GIF detector rewritten as a structural block parser** — the regex heuristic required a `0x00` byte
+  before each Graphic Control Extension, so animated GIFs without a NETSCAPE loop extension (and multi-frame GIFs
+  without GCEs, which are legal) were reported as still and flattened to a one-frame WebP under GD. Verified
+  against real files. The parser streams the file (constant memory, stops at the second Image Descriptor),
+  mirroring core's `GIFMetadataExtractor` approach.
+- **Stale WebP thumbnails after reupload** — thumbnails are regenerated at the same paths, and the
+  skip-if-exists guard kept serving WebP rendered from the previous image's pixels forever. New
+  `WebPRepo::deleteWebPThumbDir()` purges the file's `images_webp/thumb/.../` directory on reupload and on full
+  deletion.
+- **GD degraded originals in place** — verified: a 16-bit PNG came back 4-bit through GD's re-encode, and
+  `imagejpeg()` drops the EXIF Orientation tag without rotating pixels (sideways camera photos). `GdOptimizer`
+  now refuses PNGs with bit depth > 8 and JPEGs carrying Orientation > 1; Imagick/libvips deployments are
+  unaffected.
+- **`repairOptimizedSize()` crashed on SQLite** — `LEAST()` does not exist there (verified: "no such function").
+  The clamp is now computed in PHP, portable across all supported backends.
+- **MediaWiki requirement corrected to >= 1.44** — the extension uses `MediaWiki\JobQueue\Job`,
+  `JobSpecification` and `JobQueueGroup`, whose namespaced forms only exist since 1.44 (core aliases are marked
+  "since 1.44"); on a 1.43 wiki every upload fataled with "class not found".
+- **Second-pass metadata desync can no longer hide behind a "done" marker** — `ZopfliOriginalProcessor` marked
+  the row recompressed *before* refreshing MediaWiki's `img_sha1`/`img_size`, and swallowed a refresh failure;
+  the row was never reselected, leaving stale metadata forever. The refresh now runs first; on failure the row
+  stays pending and is retried (the retry also detects and repairs a stale size from a previous failed run).
+- **`repairCorruptedFilenames.php` hardened** — before renaming, the candidate's SHA-1 is checked against the
+  DB's `img_sha1` (a true mojibake victim is byte-identical, so this turns the name heuristic into proof and
+  prevents installing the wrong file under a canonical name); the target's existence is re-checked immediately
+  before `rename()` (no TOCTOU clobber of a reappeared file); a failed reversal-log write is now reported.
+- **WebP URL corrupted for image URLs carrying a query string** — the origin-prefix length arithmetic in
+  `WebPRepo::getWebPUrlAndPath()` counted the stripped query string, yielding URLs like `/ima/images_webp/...`
+  (verified). The origin is now taken as the exact prefix preceding the URL path.
+- **`$wgVaultTecMediaOptimizerFormats` can now be restricted** — without a `merge_strategy`, extension.json
+  defaults merge with `array_merge`, so a LocalSettings restriction to e.g. PNG-only was silently ignored.
+  Now `provide_default`.
+- **Upload hook no longer talks to the job queue synchronously** — `push()` ran inside the upload's PRESEND
+  `AutoCommitUpdate` with no try/catch; a queue-backend outage would abort core's own thumbnail/CDN purges that
+  follow the hook. Switched to `lazyPush()` wrapped in try/catch.
+- **Stats cache invalidation** — `markComplete/markFailed/markSkipped` (the dominant write path during a
+  backfill) now invalidate the dashboard stats cache, as the docblock always claimed.
+- **On-demand WebP size guard symmetry** — after an on-demand encode, a 0-byte result (disk full mid-write) is
+  no longer referenced in `<picture>` (a broken `<source>` has no fallback to the inner `<img>`).
+- **Traversal guard on `getWebPPath()`'s fallback branch** — the non-realpath branch only prefix-checked the
+  upload dir, letting a `../` path slip through to `deleteWebP()`'s unlink. Now rejected like in
+  `getWebPUrlAndPath()`. Docblocks also fixed to document the 3-tuple return.
+
 ## [1.8.4]
 
 ### 🇫🇷 Résumé

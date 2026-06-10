@@ -98,14 +98,38 @@ class MainHooks implements
 			return;
 		}
 
-		$this->jobQueueGroup->push(
-			new JobSpecification(
-				'VaultTecMediaOptimizerOptimizeImage',
-				[ 'imgName' => $imgName ],
-				[ 'removeDuplicates' => true ],
-				$title
-			)
-		);
+		// On reupload, MediaWiki regenerates thumbnails at the same paths; our
+		// per-thumb skip-if-exists guard in onFileTransformed would then keep
+		// serving WebP rendered from the PREVIOUS image forever. Drop the whole
+		// WebP thumb directory for this file so every size is re-encoded from
+		// the new pixels (the original's WebP is overwritten by the job below).
+		if ( $reupload ) {
+			try {
+				$this->webpRepo->deleteWebPThumbDir( $imgName );
+			} catch ( Throwable $e ) {
+				$this->logger->warning( 'WebP thumb purge on reupload failed for {name}: {msg}',
+					[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+			}
+		}
+
+		// lazyPush + try/catch: this hook runs inside the upload's PRESEND
+		// AutoCommitUpdate, and core performs its own thumbnail/CDN purges right
+		// after it. A queue backend outage (JobQueueError from a synchronous
+		// push) must not abort those follow-ups — worst case our job is simply
+		// not enqueued and the file is picked up by the next backfill.
+		try {
+			$this->jobQueueGroup->lazyPush(
+				new JobSpecification(
+					'VaultTecMediaOptimizerOptimizeImage',
+					[ 'imgName' => $imgName ],
+					[ 'removeDuplicates' => true ],
+					$title
+				)
+			);
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Could not enqueue optimization for {name}: {msg}',
+				[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+		}
 	}
 
 	/**
@@ -114,6 +138,14 @@ class MainHooks implements
 	 * Cleans up the WebP file and DB record on deletion of the original.
 	 */
 	public function onFileDeleteComplete( $file, $oldimage, $article, $user, $reason ) {
+		// $oldimage is non-null when only an OLD version of the file was
+		// deleted: the current file still exists and keeps being served, so its
+		// WebP and optimization record must stay. (Archived versions never have
+		// WebP derivatives — we only ever generate for the current name.)
+		if ( $oldimage !== null ) {
+			return;
+		}
+
 		$imgName = $file->getName();
 
 		// Reconstruct the filesystem path the same way we do in ImageProcessor:
@@ -125,6 +157,10 @@ class MainHooks implements
 			$path = $uploadDir . '/' . $rel;
 			try {
 				$this->webpRepo->deleteWebP( $path );
+				// Also drop the per-size WebP thumbnails; otherwise a later
+				// reupload under the same name would serve them (stale pixels)
+				// thanks to the skip-if-exists guard in onFileTransformed.
+				$this->webpRepo->deleteWebPThumbDir( $imgName );
 			} catch ( Throwable $e ) {
 				// Best-effort: log and move on. We don't want to block the
 				// deletion if WebP cleanup fails (disk error, perms, etc.).

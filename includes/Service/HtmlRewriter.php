@@ -285,7 +285,11 @@ class HtmlRewriter {
 				return false;
 			}
 			$this->logger->debug( 'On-demand WebP generated: {dest}', [ 'dest' => $webpPath ] );
-			return is_file( $webpPath );
+			// Same guard as the fast path above: a 0-byte result (disk full
+			// mid-write) must not be referenced — a <picture> <source> that
+			// 404s/breaks has no fallback to the inner <img>.
+			clearstatcache( true, $webpPath );
+			return is_file( $webpPath ) && filesize( $webpPath ) > 0;
 		} catch ( \Throwable $e ) {
 			$this->logger->warning( 'On-demand WebP generation error for {src}: {msg}', [
 				'src' => $srcThumbPath,
