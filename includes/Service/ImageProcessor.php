@@ -232,7 +232,10 @@ class ImageProcessor {
 
 			$lossless = ( $mime === 'image/png' )
 				&& $this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+			// Clamp to libwebp's 0-100 range (GD throws on negatives; vips
+			// silently clamps; a non-numeric value casts to 0).
+			$quality = min( 100, max( 0,
+				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
 
 			$ok = $optimizer->convertToWebP( $path, $webpPath, $lossless, $quality );
 			if ( !$ok ) {
@@ -267,7 +270,25 @@ class ImageProcessor {
 				$webpSize = 0;
 			}
 
-			// 3b. Experimental AVIF copy of the original, served before WebP to
+			// 3b. Never keep a derivative that is not strictly smaller than the
+			// (already optimized) original: serving it would make the visitor
+			// download MORE bytes — an anti-optimization. Happens routinely for
+			// lossless WebP of a well-compressed PNG or WebP of a tiny GIF.
+			// Delete it and record success with no WebP, exactly like the
+			// animated-GIF-without-WebP outcome; the original keeps being
+			// served. (HtmlRewriter applies the same strictly-smaller guard at
+			// serve time, so even a stale larger file is never referenced.)
+			if ( $webpSize > 0 && $webpSize >= $optimizedSize ) {
+				@unlink( $webpPath );
+				$this->logger->info(
+					'WebP of {name} ({webp} B) not smaller than the original ({orig} B); '
+						. 'discarded — the original stays the served asset',
+					[ 'name' => $imgName, 'webp' => $webpSize, 'orig' => $optimizedSize ]
+				);
+				$webpSize = 0;
+			}
+
+			// 3c. Experimental AVIF copy of the original, served before WebP to
 			// capable browsers. Best-effort and not tracked in the stats table:
 			// a failure here never affects the WebP result or the recorded row.
 			if ( $this->options->get( 'VaultTecMediaOptimizerAvifEnabled' )
@@ -283,21 +304,20 @@ class ImageProcessor {
 				) {
 					$avifQuality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
 					if ( $optimizer->convertToAvif( $path, $avifPath, $avifQuality ) ) {
-						// Keep the AVIF only if it is actually SMALLER than the WebP.
-						// AVIF is not always smaller than WebP (it depends on the
-						// content, the quality and the AV1 encoder), and the
-						// <picture> offers AVIF *before* WebP — so a larger AVIF
-						// would make capable browsers download more than they would
-						// with WebP. If it doesn't win, discard it, remember that
-						// decision, and let the WebP be served. Mirrors the
-						// keep-if-smaller guard used on originals.
+						// Never-serve-larger, generalized to the three-way cascade:
+						// the AVIF is offered *before* WebP, so it must beat the
+						// smallest asset we would otherwise serve — the WebP if we
+						// kept one, else the (optimized) original. If it doesn't
+						// win, discard it, remember that decision, and let the WebP
+						// (or original) be served.
+						$baseline = $webpSize > 0 ? $webpSize : $optimizedSize;
 						$avifSize = filesize( $avifPath );
-						if ( $webpSize > 0 && $avifSize !== false && $avifSize >= $webpSize ) {
+						if ( $avifSize !== false && $avifSize >= $baseline ) {
 							@unlink( $avifPath );
 							$this->webpRepo->setAvifSkip( $avifPath );
 							$this->logger->debug(
-								'AVIF discarded for {name}: {avif} >= WebP {webp} bytes (serving WebP)',
-								[ 'name' => $imgName, 'avif' => $avifSize, 'webp' => $webpSize ]
+								'AVIF discarded for {name}: {avif} >= {baseline} bytes (serving WebP/original)',
+								[ 'name' => $imgName, 'avif' => $avifSize, 'baseline' => $baseline ]
 							);
 						} else {
 							// AVIF wins: drop any stale skip marker.

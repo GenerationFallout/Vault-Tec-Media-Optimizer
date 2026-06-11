@@ -1,7 +1,7 @@
 {
 	"name": "VaultTecMediaOptimizer",
 	"namemsg": "vaulttecmediaoptimizer-extensionname",
-	"version": "1.8.4",
+	"version": "1.9.0",
 	"author": [
 		"[https://fallout-wiki.com Archives de Vault-Tec]"
 	],
@@ -10,7 +10,7 @@
 	"license-name": "GPL-2.0-or-later",
 	"type": "media",
 	"requires": {
-		"MediaWiki": ">= 1.43.0",
+		"MediaWiki": ">= 1.44.0",
 		"platform": {
 			"php": ">= 8.1"
 		}
@@ -169,6 +169,7 @@
 				"image/jpeg",
 				"image/gif"
 			],
+			"merge_strategy": "provide_default",
 			"description": "MIME types to process."
 		},
 		"VaultTecMediaOptimizerStripMetadata": {
@@ -185,7 +186,7 @@
 		},
 		"VaultTecMediaOptimizerMaxFileSize": {
 			"value": 52428800,
-			"description": "Skip files larger than this (bytes). Default 50MB."
+			"description": "Skip files larger than this (bytes). Default 50MB. CAUTION: 0 (or any value <= 0) disables the limit entirely — huge files can then exhaust memory during processing."
 		},
 		"VaultTecMediaOptimizerOnDemandThumbLimit": {
 			"value": 5,

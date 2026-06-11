@@ -47,6 +47,9 @@ use MediaWiki\MediaWikiServices;
 
 class RepairCorruptedFilenames extends Maintenance {
 
+	/** @var bool Whether the reversal-log write failure was already reported. */
+	private bool $loggedLogFailure = false;
+
 	public function __construct() {
 		parent::__construct();
 		$this->requireExtension( 'VaultTecMediaOptimizer' );
@@ -63,6 +66,16 @@ class RepairCorruptedFilenames extends Maintenance {
 	}
 
 	public function execute() {
+		// Files this run rewrites in place (temp + rename) inherit THIS
+		// process's owner. Run as root and every optimized file becomes
+		// root-owned: the web server can then no longer rewrite it (future
+		// optimizations and even MediaWiki reuploads fail with permission
+		// errors, weeks later and silently). Warn loudly up front.
+		if ( function_exists( 'posix_geteuid' ) && posix_geteuid() === 0 ) {
+			$this->output( "WARNING: running as root. Files written by this run will be owned by\n" );
+			$this->output( "root and the web server will no longer be able to rewrite them.\n" );
+			$this->output( "Run as the web server user instead, e.g.: sudo -u www-data php ...\n\n" );
+		}
 		$services = MediaWikiServices::getInstance();
 		$repo = $services->getRepoGroup()->getLocalRepo();
 		$uploadDir = rtrim( (string)$this->getConfig()->get( 'UploadDirectory' ), '/' );
@@ -141,16 +154,46 @@ class RepairCorruptedFilenames extends Maintenance {
 			$candidate = $candidates[0];
 			$from = $dir . '/' . $candidate;
 
+			// Content check: a true mojibake victim is byte-identical to what
+			// the DB recorded at upload time, so its sha1 must match img_sha1.
+			// This turns a name heuristic into proof — without it, an unrelated
+			// file sharing the ASCII skeleton would be installed under the
+			// canonical name and served as the wrong image.
+			$dbSha1 = method_exists( $file, 'getSha1' ) ? $file->getSha1() : '';
+			if ( is_string( $dbSha1 ) && $dbSha1 !== '' ) {
+				$diskSha1 = \Wikimedia\base_convert( (string)sha1_file( $from ), 16, 36, 31 );
+				if ( $diskSha1 !== $dbSha1 ) {
+					$nomatch++;
+					$this->output( "[sha1-skip] $name\n" );
+					$this->output( '              candidate ' . $this->visible( $candidate )
+						. " has different content than the DB row records; not renamed\n" );
+					continue;
+				}
+			}
+
 			if ( !$apply ) {
 				$this->output( "[would-fix] $name\n" );
 				$this->output( '              from: ' . $this->visible( $candidate ) . "\n" );
 				$this->output( "              to:   $base\n" );
 				$repaired++;
 			} else {
+				// Re-check just before renaming: during a long --apply run the
+				// clean name may have reappeared (e.g. someone re-uploaded the
+				// broken image). rename() silently overwrites; don't clobber it.
+				clearstatcache( true, $expected );
+				if ( is_file( $expected ) ) {
+					$present++;
+					$this->output( "[exists]    $name reappeared on disk; candidate left untouched\n" );
+					continue;
+				}
 				if ( @rename( $from, $expected ) ) {
 					$repaired++;
-					file_put_contents( $logPath,
+					$logged = @file_put_contents( $logPath,
 						$from . "\t=>\t" . $expected . "\n", FILE_APPEND );
+					if ( $logged === false && !$this->loggedLogFailure ) {
+						$this->loggedLogFailure = true;
+						$this->output( "[warning]   cannot write the reversal log at $logPath — renames continue but are NOT being recorded\n" );
+					}
 					$this->output( "[fixed]     $name  <-  " . $this->visible( $candidate ) . "\n" );
 				} else {
 					$this->output( "[error]     could not rename for $name (permissions?)\n" );

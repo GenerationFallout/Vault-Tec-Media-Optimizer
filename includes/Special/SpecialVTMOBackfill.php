@@ -101,6 +101,16 @@ class SpecialVTMOBackfill extends SpecialPage {
 			$out->addHTML( $this->renderResultBanner( $resultParam ) );
 		}
 
+		// Large-wiki mode: the schedule buttons below still enqueue jobs, but
+		// with the queue mode off the admin has (per the documented setup) no
+		// job runner consuming them — clicks would pile up jobs shown as
+		// "Queued: N" forever with no explanation. Warn before they wonder.
+		if ( !$this->getConfig()->get( 'VaultTecMediaOptimizerUseJobQueue' ) ) {
+			$out->addHTML( Html::warningBox(
+				$this->msg( 'vaulttecmediaoptimizer-backfill-queue-disabled-warning' )->escaped()
+			) );
+		}
+
 		// === Stats ===
 		$stats = $this->record->getStats();
 		$totalEligible = $this->scheduler->countTotalEligible();

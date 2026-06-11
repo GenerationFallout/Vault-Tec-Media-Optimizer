@@ -28,9 +28,64 @@ class WebPRepo {
 	private ServiceOptions $options;
 	private LoggerInterface $logger;
 
+	/** @var string|null Memoized, validated WebP directory name. */
 	public function __construct( ServiceOptions $options, LoggerInterface $logger ) {
 		$this->options = $options;
 		$this->logger = $logger;
+	}
+
+	/**
+	 * Validate a configured derived-tree directory name (WebP or AVIF).
+	 *
+	 * This name is the ONLY thing separating our derived-file tree (which we
+	 * freely create, overwrite and recursively purge — see deleteWebPThumbDir)
+	 * from MediaWiki's real upload tree. A careless config can break that
+	 * separation:
+	 *  - same name as the upload directory's basename → the root IS the upload
+	 *    dir, and the reupload purge would delete MediaWiki's REAL thumbnails;
+	 *  - empty, '.'/'..' or a value containing path separators → the tree
+	 *    lands somewhere malformed or outside the wiki.
+	 * Such values are rejected and replaced with a safe default, loudly. Applied
+	 * inside rootDirFor()/rootUrlFor() so EVERY derived path — WebP and AVIF —
+	 * is validated, regardless of which config key it came from.
+	 *
+	 * @param string $name Raw configured directory name
+	 * @param string $configKey Config key name, for the log message
+	 * @param string $fallback Safe default to use when $name is rejected
+	 */
+	private function validatedDirName( string $name, string $configKey, string $fallback ): string {
+		$uploadBase = basename( rtrim( (string)$this->options->get( 'UploadDirectory' ), '/' ) );
+		$invalid = $name === '' || $name === '.' || $name === '..'
+			|| strpbrk( $name, '/\\' ) !== false
+			|| strpos( $name, "\0" ) !== false
+			|| $name === $uploadBase;
+		if ( !$invalid ) {
+			return $name;
+		}
+		// If the fallback itself collides with the upload basename, suffix it.
+		if ( $fallback === $uploadBase ) {
+			$fallback .= '_vtmo';
+		}
+		$this->logger->error(
+			'Invalid ${key} {value} (empty, contains a path separator, or collides with the '
+				. 'upload directory name {upload}); using {fallback}',
+			[ 'key' => $configKey, 'value' => $name, 'upload' => $uploadBase, 'fallback' => $fallback ]
+		);
+		return $fallback;
+	}
+
+	/**
+	 * Validated directory name for a given derived-format root (WebP or AVIF),
+	 * picking the right config key and fallback from the raw value.
+	 */
+	private function resolveDirName( string $rawDirName ): string {
+		$webpDir = (string)$this->options->get( 'VaultTecMediaOptimizerWebPDirectory' );
+		if ( $rawDirName === $webpDir ) {
+			return $this->validatedDirName( $rawDirName,
+				'wgVaultTecMediaOptimizerWebPDirectory', 'images_webp' );
+		}
+		return $this->validatedDirName( $rawDirName,
+			'wgVaultTecMediaOptimizerAvifDirectory', 'images_avif' );
 	}
 
 	/**
@@ -52,6 +107,7 @@ class WebPRepo {
 	 */
 	private function rootDirFor( string $dirName ): string {
 		$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
+		$dirName = $this->resolveDirName( $dirName );
 		$parent = dirname( $uploadDir );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
 			return '/' . $dirName;
@@ -86,6 +142,7 @@ class WebPRepo {
 
 	private function rootUrlFor( string $dirName ): string {
 		$uploadPath = rtrim( $this->options->get( 'UploadPath' ), '/' );
+		$dirName = $this->resolveDirName( $dirName );
 		$parent = dirname( $uploadPath );
 		if ( $parent === '/' || $parent === '\\' || $parent === '.' ) {
 			return '/' . $dirName;
@@ -196,6 +253,12 @@ class WebPRepo {
 				return null;
 			}
 			$relative = substr( $originalPath, strlen( $uploadDir ) );
+			// Unlike the realpath branch above, nothing has normalized this
+			// path yet: a "../" segment would map to (and via deleteWebP()
+			// potentially unlink) a file OUTSIDE images_webp. Reject it.
+			if ( strpos( $relative, '..' ) !== false || strpos( $relative, "\0" ) !== false ) {
+				return null;
+			}
 		} else {
 			if ( strpos( $realOriginal, $realUploadDir ) !== 0 ) {
 				return null;
@@ -226,8 +289,9 @@ class WebPRepo {
 	 *
 	 * @param string $originalUrl E.g. /images/a/ab/File.png, /images/thumb/a/ab/File.png/220px-File.png,
 	 *                            /thumb.php?f=File.png&width=220, or a full URL containing those.
-	 * @return array{0: string, 1: string, 2?: string}|null [webpUrl, webpDiskPath, srcThumbPath], or null
-	 *                                          if the URL is not from the upload area
+	 * @return array{0: string, 1: string, 2: string}|null
+	 *         [webpUrl, webpDiskPath, srcThumbPath], or null if the URL is not
+	 *         from the upload area
 	 */
 	public function getWebPUrlAndPath( string $originalUrl ): ?array {
 		return $this->derivedUrlAndPath(
@@ -306,11 +370,15 @@ class WebPRepo {
 		$rootDir = $this->rootDirFor( $dirName );
 		$derivedDiskRelative = $this->resolveDiskVariant( $rootDir, $derivedRelativeDecoded, $derivedRelativeEncoded );
 
-		// URL — must be percent-encoded
-		if ( $originalUrl !== $path ) {
-			// Recompute the prefix that was stripped (handles "https://host/" + path)
-			$prefixLen = strlen( $originalUrl ) - strlen( $relative ) - strlen( $uploadPath ) - 1;
-			$origin = substr( $originalUrl, 0, max( 0, $prefixLen ) );
+		// URL — must be percent-encoded. The origin prefix ("https://host") is
+		// whatever precedes $path in the original URL. Length arithmetic against
+		// $originalUrl is WRONG here: a stripped query string would inflate the
+		// computed length and corrupt the prefix (e.g. "/images/F.png?x=1"
+		// yielded "/ima"). $path is the exact substring that follows the origin,
+		// so the origin is simply $originalUrl up to the first occurrence of $path.
+		$pathPos = strpos( $originalUrl, $path );
+		if ( $pathPos !== false && $pathPos > 0 ) {
+			$origin = substr( $originalUrl, 0, $pathPos );
 			$derivedUrl = $origin . $this->rootUrlFor( $dirName ) . '/' . $derivedRelativeEncoded;
 		} else {
 			$derivedUrl = $this->rootUrlFor( $dirName ) . '/' . $derivedRelativeEncoded;
@@ -523,6 +591,64 @@ class WebPRepo {
 		}
 
 		return [ true, "Directory $dir created successfully." ];
+	}
+
+	/**
+	 * Delete every per-size WebP thumbnail of a file, i.e. the whole
+	 * images_webp/thumb/<a>/<ab>/<imgName>/ directory.
+	 *
+	 * Called on reupload and on full deletion: thumbnails are regenerated at
+	 * the SAME paths, so without this purge the skip-if-exists guard in
+	 * onFileTransformed would keep serving WebP rendered from the previous
+	 * image's pixels forever.
+	 *
+	 * The directory name on disk may be stored decoded or URL-encoded depending
+	 * on the FileBackend config (same duality as resolveDiskVariant), so both
+	 * variants are removed.
+	 *
+	 * @param string $imgName DB key, e.g. "Vault_door.png"
+	 * @return bool True if nothing was left behind (or nothing existed)
+	 */
+	public function deleteWebPThumbDir( string $imgName ): bool {
+		// Defensive: a path separator or traversal in a DB key should be
+		// impossible, but this method recursively deletes a directory.
+		if ( $imgName === '' || strpos( $imgName, '/' ) !== false
+			|| strpos( $imgName, '\\' ) !== false
+			|| strpos( $imgName, '..' ) !== false
+			|| strpos( $imgName, "\0" ) !== false
+		) {
+			return false;
+		}
+		$hash = md5( $imgName );
+		$hashDir = substr( $hash, 0, 1 ) . '/' . substr( $hash, 0, 2 );
+		$ok = true;
+		// Purge both derived trees (WebP and the experimental AVIF), each in its
+		// decoded and URL-encoded on-disk name variant.
+		$roots = array_unique( [ $this->getRootDir(), $this->getAvifRootDir() ] );
+		foreach ( $roots as $root ) {
+			foreach ( array_unique( [ $imgName, rawurlencode( $imgName ) ] ) as $dirName ) {
+				$dir = $root . '/thumb/' . $hashDir . '/' . $dirName;
+				if ( !is_dir( $dir ) ) {
+					continue;
+				}
+				$entries = @scandir( $dir );
+				if ( $entries === false ) {
+					$ok = false;
+					continue;
+				}
+				foreach ( $entries as $entry ) {
+					if ( $entry === '.' || $entry === '..' ) {
+						continue;
+					}
+					// Flat directory of per-size derived files; never recurse further.
+					if ( !@unlink( $dir . '/' . $entry ) ) {
+						$ok = false;
+					}
+				}
+				@rmdir( $dir );
+			}
+		}
+		return $ok;
 	}
 
 	/**

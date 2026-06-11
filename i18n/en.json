@@ -36,6 +36,7 @@
 	"vaulttecmediaoptimizer-status-action-stats": "View statistics",
 	"vaulttecmediaoptimizer-backfill-title": "Vault-Tec: media backfill optimization",
 	"vaulttecmediaoptimizer-backfill-intro": "Optimizes the wiki's existing images. Processing happens in the background via MediaWiki's job queue, without blocking the site.",
+	"vaulttecmediaoptimizer-backfill-queue-disabled-warning": "$wgVaultTecMediaOptimizerUseJobQueue is disabled (large-wiki mode): jobs scheduled from this page will sit in the queue until you process it yourself (runJobs.php). The recommended path in this mode is the CLI: maintenance/optimizeImages.php.",
 	"vaulttecmediaoptimizer-backfill-status-idle": "No optimization running",
 	"vaulttecmediaoptimizer-backfill-status-running": "Optimization in progress",
 	"vaulttecmediaoptimizer-backfill-status-complete": "Optimization complete",

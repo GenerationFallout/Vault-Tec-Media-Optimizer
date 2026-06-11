@@ -11,7 +11,9 @@
  *      but still converts a still GIF normally.
  *   3. End-to-end through the REAL ImageProcessor with the GD backend: an
  *      animated GIF is recorded 'complete' with NO WebP on disk and the
- *      animation preserved, while a still GIF gets its WebP.
+ *      animation preserved; a still GIF whose WebP comes out LARGER than the
+ *      GIF has that WebP discarded (never-serve-larger policy, recorded with
+ *      webp=0); a photo-like GIF whose WebP is genuinely smaller keeps it.
  *
  * Only MediaWiki/PSR types are stubbed; GD, gifsicle and ImageMagick are real.
  *
@@ -195,7 +197,12 @@ namespace {
 	exec( $mk . escapeshellarg( $anim ) . ' 2>/dev/null' );
 	exec( 'convert -size 64x64 xc:white -fill blue -draw '
 		. escapeshellarg( 'rectangle 10,10 50,50' ) . ' ' . escapeshellarg( $still ) . ' 2>/dev/null' );
-	if ( !is_file( $anim ) || !is_file( $still ) ) {
+	// A photo-like GIF (dithered plasma gradient): GIF compresses this poorly,
+	// so its lossy WebP is reliably MUCH smaller — exercises the "WebP kept"
+	// side of the never-serve-larger policy.
+	$photo = "$work/photo.gif";
+	exec( 'convert -size 128x128 plasma:fractal ' . escapeshellarg( $photo ) . ' 2>/dev/null' );
+	if ( !is_file( $anim ) || !is_file( $still ) || !is_file( $photo ) ) {
 		fwrite( STDERR, "Could not generate the test GIFs.\n" );
 		exit( 1 );
 	}
@@ -244,10 +251,13 @@ namespace {
 	$IMG = "$work/images";
 	@mkdir( "$IMG/a/aa", 0777, true );
 	@mkdir( "$IMG/b/bb", 0777, true );
+	@mkdir( "$IMG/c/cc", 0777, true );
 	$animRel = 'a/aa/Anim.gif';
 	$stillRel = 'b/bb/Still.gif';
+	$photoRel = 'c/cc/Photo.gif';
 	copy( $anim, "$IMG/$animRel" );
 	copy( $still, "$IMG/$stillRel" );
+	copy( $photo, "$IMG/$photoRel" );
 
 	$opts = new ServiceOptions( [
 		'VaultTecMediaOptimizerEnabled' => true,
@@ -276,6 +286,8 @@ namespace {
 		new File( 'Anim.gif', $animRel, "$IMG/$animRel", 'image/gif', filesize( "$IMG/$animRel" ) );
 	$repoGroup->getLocalRepo()->files['Still.gif'] =
 		new File( 'Still.gif', $stillRel, "$IMG/$stillRel", 'image/gif', filesize( "$IMG/$stillRel" ) );
+	$repoGroup->getLocalRepo()->files['Photo.gif'] =
+		new File( 'Photo.gif', $photoRel, "$IMG/$photoRel", 'image/gif', filesize( "$IMG/$photoRel" ) );
 	$processor = new ( $NS . 'Service\\ImageProcessor' )(
 		$opts, $factory, $webpRepo, $record, $repoGroup, $gifOpt, $logger );
 
@@ -293,14 +305,26 @@ namespace {
 		GifAnimationDetector::isAnimated( "$IMG/$animRel" ) === true );
 	check( 'animated: original never grew (keep-if-smaller)', filesize( "$IMG/$animRel" ) <= $animBefore );
 
-	// --- Still GIF ---
+	// --- Still GIF (flat colors: its WebP comes out LARGER than the GIF) ---
+	// Never-serve-larger policy: the WebP is discarded, the row records
+	// success with webp=0 and the original GIF stays the served asset.
 	$okS = $processor->processByName( 'Still.gif' );
 	$stillWebpDisk = "$work/images_webp/b/bb/Still.webp";
 	check( 'still: process() = true', $okS === true );
 	check( 'still: recorded complete', ( $record->rows['Still.gif']['status'] ?? '' ) === 'complete' );
-	check( 'still: WebP written (RIFF)',
-		is_file( $stillWebpDisk ) && substr( (string)file_get_contents( $stillWebpDisk ), 0, 4 ) === 'RIFF' );
-	check( 'still: webp size recorded > 0', ( $record->rows['Still.gif']['webp'] ?? 0 ) > 0 );
+	check( 'still (webp larger): WebP discarded, not on disk', !is_file( $stillWebpDisk ) );
+	check( 'still (webp larger): webp size recorded 0', ( $record->rows['Still.gif']['webp'] ?? -1 ) === 0 );
+
+	// --- Photo-like GIF (gradients: its WebP is genuinely smaller) ---
+	$okP = $processor->processByName( 'Photo.gif' );
+	$photoWebpDisk = "$work/images_webp/c/cc/Photo.webp";
+	check( 'photo: process() = true', $okP === true );
+	check( 'photo: recorded complete', ( $record->rows['Photo.gif']['status'] ?? '' ) === 'complete' );
+	check( 'photo (webp smaller): WebP written (RIFF)',
+		is_file( $photoWebpDisk ) && substr( (string)file_get_contents( $photoWebpDisk ), 0, 4 ) === 'RIFF' );
+	check( 'photo (webp smaller): webp size recorded > 0', ( $record->rows['Photo.gif']['webp'] ?? 0 ) > 0 );
+	check( 'photo: served derivative strictly smaller than the original',
+		is_file( $photoWebpDisk ) && filesize( $photoWebpDisk ) < filesize( "$IMG/$photoRel" ) );
 
 	echo "\nResult: $pass passed, $fail failed\n";
 	exit( $fail === 0 ? 0 : 1 );

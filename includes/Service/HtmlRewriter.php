@@ -41,6 +41,11 @@ use Psr\Log\LoggerInterface;
  * produces a broken image. So we only emit <picture> when the WebP file
  * exists on disk. The is_file() check is one stat() per image, cached by
  * the OS — negligible cost.
+ *
+ * Never-serve-larger: a WebP is only ever referenced when it is STRICTLY
+ * smaller than the file it replaces (see isWorthServing). A larger encode
+ * is kept on disk as a negative cache (so the on-demand budget is not
+ * re-spent every render) but the visitor always gets the smaller asset.
  */
 class HtmlRewriter {
 
@@ -90,8 +95,12 @@ class HtmlRewriter {
 
 		// Reset the per-render budget for synchronous on-demand WebP generation.
 		// Existing WebP files are always served; this only caps how many *missing*
-		// ones we encode inline during this single page render.
-		$this->onDemandRemaining = (int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' );
+		// ones we encode inline during this single page render. Hard-capped at
+		// 100: this budget exists precisely to bound cold-render latency, so an
+		// absurd config value (e.g. 10000) must not be able to turn one page
+		// view into thousands of synchronous encodes (self-inflicted DoS).
+		$this->onDemandRemaining = min( 100,
+			(int)$this->options->get( 'VaultTecMediaOptimizerOnDemandThumbLimit' ) );
 
 		// Find all <img ... src="..." ...> with their offsets in the original text.
 		// We capture both the full tag and the src URL, plus the byte offset of
@@ -261,29 +270,36 @@ class HtmlRewriter {
 	 * the extension, and whether or not it is ever regenerated.
 	 *
 	 * Only the sizes pages truly use are generated (no blind disk sweep). The
-	 * result is cached on disk, so generation happens at most once per size.
-	 * Synchronous encodes are capped per render by the P1 budget; AVIF support is
-	 * checked first so an unsupported backend never spends budget.
+	 * result is cached on disk, so generation happens at most once per size —
+	 * including when the encode turns out NOT worth serving (see below): the
+	 * file is kept on disk as a negative cache so the budget is never spent
+	 * twice on the same size. Synchronous encodes are capped per render by the
+	 * P1 budget; AVIF support is checked first so an unsupported backend never
+	 * spends budget.
 	 *
 	 * @param array{0:string,1:string,2?:string} $info [derivedUrl, derivedDiskPath, srcThumbPath]
 	 * @param string $ext 'webp' | 'avif'
-	 * @return bool True if the derived file exists (already or after generation)
+	 * @return bool True if the derived file exists AND is worth serving (strictly
+	 *  smaller than the file it would replace)
 	 */
 	private function ensureDerived( array $info, string $ext ): bool {
 		$destPath = $info[1];
+		$srcThumbPath = $info[2] ?? null;
 
-		// Already present AND non-empty — serve it (the common case after
-		// warm-up). A leftover 0-byte/truncated derived file (e.g. from an
-		// interrupted pre-atomic write, disk-full, or tampering) is treated as
-		// missing: a <source> pointing at it would break the image with no
-		// fallback, so we regenerate instead.
+		// Already present AND non-empty — the common case after warm-up. A
+		// leftover 0-byte/truncated derived file (e.g. from an interrupted
+		// pre-atomic write, disk-full, or tampering) is treated as missing: a
+		// <source> pointing at it would break the image with no fallback, so we
+		// regenerate instead. A present file is still subject to the
+		// never-serve-larger guard (it must be smaller than the thumbnail it
+		// replaces). An AVIF on disk already beat its WebP sibling at generation
+		// time, so comparing to the source thumbnail is sufficient here.
 		if ( is_file( $destPath ) && filesize( $destPath ) > 0 ) {
-			return true;
+			return $this->isWorthServing( $destPath, $srcThumbPath );
 		}
 
 		// We need the source thumbnail path to generate from. Older callers or
 		// URL shapes that don't resolve a source can't be generated on demand.
-		$srcThumbPath = $info[2] ?? null;
 		if ( $srcThumbPath === null || !is_file( $srcThumbPath ) || !is_readable( $srcThumbPath ) ) {
 			return false;
 		}
@@ -343,13 +359,18 @@ class HtmlRewriter {
 		$this->onDemandRemaining--;
 
 		try {
+			// Clamp quality to 0-100: GD throws a ValueError on negative values
+			// and a non-numeric config casts to 0; misconfiguration must not
+			// break every encode.
 			if ( $ext === 'avif' ) {
-				$quality = (int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' );
+				$quality = min( 100, max( 0,
+					(int)$this->options->get( 'VaultTecMediaOptimizerAvifQuality' ) ) );
 				$ok = $optimizer->convertToAvif( $srcThumbPath, $destPath, $quality );
 			} else {
 				$lossless = ( $mime === 'image/png' )
 					&& (bool)$this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-				$quality = (int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' );
+				$quality = min( 100, max( 0,
+					(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
 				$ok = $optimizer->convertToWebP( $srcThumbPath, $destPath, $lossless, $quality );
 			}
 			if ( !$ok ) {
@@ -385,7 +406,15 @@ class HtmlRewriter {
 				$this->webpRepo->clearAvifSkip( $destPath );
 			}
 			$this->logger->debug( 'On-demand {ext} generated: {dest}', [ 'ext' => $ext, 'dest' => $destPath ] );
-			return is_file( $destPath );
+			// 0-byte guard (disk full mid-write): a <picture> <source> that
+			// 404s/breaks has no fallback to the inner <img>. And never-serve-
+			// larger: a valid-but-larger result is KEPT on disk (negative cache,
+			// re-evaluated for free next render) but not referenced.
+			clearstatcache( true, $destPath );
+			if ( !is_file( $destPath ) || filesize( $destPath ) === 0 ) {
+				return false;
+			}
+			return $this->isWorthServing( $destPath, $srcThumbPath );
 		} catch ( \Throwable $e ) {
 			$this->logger->warning( 'On-demand {ext} generation error for {src}: {msg}', [
 				'ext' => $ext,
@@ -394,6 +423,32 @@ class HtmlRewriter {
 			] );
 			return false;
 		}
+	}
+
+	/**
+	 * Never serve a derivative (WebP or AVIF) that is not strictly smaller than
+	 * the file it replaces: a derived file at-or-above the source size is an
+	 * anti-optimization — the visitor would download MORE bytes than with the
+	 * original.
+	 *
+	 * Comparison requires both sizes. When the source is missing on disk
+	 * (e.g. MediaWiki purged the thumbnail but our derived file remains, with
+	 * the 404 handler set to regenerate on request), the derived file is served
+	 * as before: we only refuse when we can PROVE it is not smaller.
+	 *
+	 * @param string $derivedPath Existing, non-empty WebP/AVIF file
+	 * @param string|null $srcPath The file the <source> would replace
+	 */
+	private function isWorthServing( string $derivedPath, ?string $srcPath ): bool {
+		if ( $srcPath === null || !is_file( $srcPath ) ) {
+			return true;
+		}
+		$derivedSize = filesize( $derivedPath );
+		$srcSize = filesize( $srcPath );
+		if ( $derivedSize === false || $srcSize === false ) {
+			return true;
+		}
+		return $derivedSize < $srcSize;
 	}
 
 	/**

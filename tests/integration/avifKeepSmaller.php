@@ -233,30 +233,41 @@ namespace {
 	check( 'GD backend selected', $factory->getOptimizer()->getName() === 'gd' );
 
 	// Independently compute the expected outcome for each image, using the SAME
-	// settings the extension uses (PNG -> lossless WebP, AVIF q50), so the test
-	// asserts the real decision rather than a hardcoded guess.
-	$expectKeepAvif = static function ( string $abs ) use ( $factory ): bool {
+	// settings and the SAME never-serve-larger cascade the extension uses, so the
+	// test asserts the real decision rather than a hardcoded guess:
+	//   - the lossless WebP is kept only if strictly smaller than the original;
+	//   - the AVIF (q50) is offered before WebP, so it is kept only if strictly
+	//     smaller than the asset it would beat — the WebP if that was kept, else
+	//     the original (OptimizeOriginals is off here, so optimized == original).
+	$expectOutcome = static function ( string $abs ) use ( $factory ): array {
 		$opt = $factory->getOptimizer();
 		$w = $abs . '.cmp.webp';
 		$a = $abs . '.cmp.avif';
 		$opt->convertToWebP( $abs, $w, true, 85 );
 		$opt->convertToAvif( $abs, $a, 50 );
-		$ws = is_file( $w ) ? filesize( $w ) : 0;
+		$origSize = filesize( $abs );
+		$ws = is_file( $w ) ? filesize( $w ) : PHP_INT_MAX;
 		$as = is_file( $a ) ? filesize( $a ) : PHP_INT_MAX;
 		@unlink( $w );
 		@unlink( $a );
-		return $as < $ws;
+		$keepWebp = $ws < $origSize;
+		$baseline = $keepWebp ? $ws : $origSize;
+		return [ 'webp' => $keepWebp, 'avif' => $as < $baseline ];
 	};
 
 	foreach ( [ 'Ui.png' => $uiRel, 'Photo.png' => $phRel ] as $name => $rel ) {
 		$abs = "$IMG/$rel";
 		$avifPath = $webpRepo->getAvifPath( $abs );
 		$marker = $webpRepo->avifSkipMarker( $avifPath );
-		$keep = $expectKeepAvif( $abs );
-		echo "\n== $name  (attendu : AVIF " . ( $keep ? 'GARDÉ' : 'REJETÉ' ) . ") ==\n";
+		$expect = $expectOutcome( $abs );
+		$keep = $expect['avif'];
+		echo "\n== $name  (attendu : WebP " . ( $expect['webp'] ? 'GARDÉ' : 'REJETÉ' )
+			. ', AVIF ' . ( $keep ? 'GARDÉ' : 'REJETÉ' ) . ") ==\n";
 
 		check( "$name : process() = true", $processor->processByName( $name ) === true );
-		check( "$name : WebP présent", is_file( $webpRepo->getWebPPath( $abs ) ) );
+		// Never-serve-larger: the WebP is on disk only if it beat the original.
+		check( "$name : WebP " . ( $expect['webp'] ? 'présent' : 'écarté (>= original)' ),
+			is_file( $webpRepo->getWebPPath( $abs ) ) === $expect['webp'] );
 
 		if ( $keep ) {
 			check( "$name : AVIF gardé (plus petit que le WebP)", is_file( $avifPath ) );
