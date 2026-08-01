@@ -44,6 +44,8 @@ require_once "$IP/maintenance/Maintenance.php";
 // @codeCoverageIgnoreEnd
 
 use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IExpression;
+use Wikimedia\Rdbms\LikeValue;
 
 class RepairCorruptedFilenames extends Maintenance {
 
@@ -88,17 +90,20 @@ class RepairCorruptedFilenames extends Maintenance {
 		$extFilter = $this->normaliseFormat( (string)$this->getOption( 'format', '' ) );
 
 		// Source list: our own failures recorded as "File not found".
+		// Query builder rather than the legacy $dbr->select(): that method is
+		// marked @internal in modern core (verified against 1.46) and may be
+		// withdrawn without a deprecation cycle, and the builder is what the
+		// rest of this extension uses.
 		$dbr = $this->getReplicaDB();
-		$res = $dbr->select(
-			'vtmo_image_optimization',
-			[ 'io_img_name' ],
-			[
-				'io_status' => 'failed',
-				'io_error' . $dbr->buildLike( 'File not found', $dbr->anyString() ),
-			],
-			__METHOD__,
-			[ 'ORDER BY' => 'io_img_name' ]
-		);
+		$res = $dbr->newSelectQueryBuilder()
+			->select( [ 'io_img_name' ] )
+			->from( 'vtmo_image_optimization' )
+			->where( [ 'io_status' => 'failed' ] )
+			->andWhere( $dbr->expr( 'io_error', IExpression::LIKE,
+				new LikeValue( 'File not found', $dbr->anyString() ) ) )
+			->orderBy( 'io_img_name' )
+			->caller( __METHOD__ )
+			->fetchResultSet();
 
 		$logPath = sys_get_temp_dir() . '/vtmo-filename-repairs-' . wfTimestampNow() . '.log';
 

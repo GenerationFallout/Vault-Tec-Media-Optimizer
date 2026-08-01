@@ -31,6 +31,11 @@ bonne part de vos médias est de ce type, le gain WebP se concentrera sur les co
 (captures, artworks), où le rapport s'inverse nettement (mesuré : WebP ~3,5× plus petit).
 
 ### Fixed
+- **`repairCorruptedFilenames.php` no longer calls an `@internal` core API** — it was the only place still using
+  the legacy `$dbr->select()`, which MediaWiki now marks `@internal` (verified against core 1.46.0): it is not
+  deprecated, so it raises no warning, but it is no longer intended for extensions and can be withdrawn without
+  a deprecation cycle. Rewritten with `newSelectQueryBuilder()` + `IExpression::LIKE`/`LikeValue`, matching the
+  rest of the extension.
 - **Self-inflicted stats-cache regression** — `invalidateStatsCache()` was added in 1.9.0 to
   `markComplete/markFailed/markSkipped`, the per-file backfill write path, contradicting the explicit in-code
   decision ("we intentionally do NOT invalidate the stats cache on every thumbnail (could be very frequent).
