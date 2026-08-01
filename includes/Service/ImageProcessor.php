@@ -270,19 +270,27 @@ class ImageProcessor {
 				$webpSize = 0;
 			}
 
-			// 3b. Never keep a derivative that is not strictly smaller than the
-			// (already optimized) original: serving it would make the visitor
-			// download MORE bytes — an anti-optimization. Happens routinely for
-			// lossless WebP of a well-compressed PNG or WebP of a tiny GIF.
-			// Delete it and record success with no WebP, exactly like the
-			// animated-GIF-without-WebP outcome; the original keeps being
-			// served. (HtmlRewriter applies the same strictly-smaller guard at
-			// serve time, so even a stale larger file is never referenced.)
+			// 3b. Never serve a derivative that is not strictly smaller than the
+			// (already optimized) original: it would make the visitor download
+			// MORE bytes — an anti-optimization. Happens routinely for a lossless
+			// WebP of a well-compressed PNG, or the WebP of a tiny flat-colour GIF.
+			//
+			// We record it as "no WebP" (webp = 0), exactly like the
+			// animated-GIF-without-WebP outcome, so the original stays the served
+			// asset — HtmlRewriter independently re-checks the sizes at serve
+			// time, which is the actual guarantee.
+			//
+			// The file itself is deliberately LEFT on disk as a negative cache,
+			// matching HtmlRewriter's on-demand path. Deleting it here would be
+			// worse: the next page render would find the WebP missing, spend a
+			// unit of the on-demand render budget re-encoding it, discover again
+			// that it loses, and so on — burning budget that legitimate
+			// thumbnails need. Leaving it makes both paths short-circuit on the
+			// cheap "exists but not smaller" check forever after.
 			if ( $webpSize > 0 && $webpSize >= $optimizedSize ) {
-				@unlink( $webpPath );
 				$this->logger->info(
 					'WebP of {name} ({webp} B) not smaller than the original ({orig} B); '
-						. 'discarded — the original stays the served asset',
+						. 'kept on disk but not served — the original stays the served asset',
 					[ 'name' => $imgName, 'webp' => $webpSize, 'orig' => $optimizedSize ]
 				);
 				$webpSize = 0;

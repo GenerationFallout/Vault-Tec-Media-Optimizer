@@ -101,11 +101,24 @@ namespace {
 	@mkdir( "$IMG/a/ab", 0777, true );
 	$origRel = 'a/ab/Test.png';
 	$origAbs = "$IMG/$origRel";
-	// Image source réaliste (dégradé) -> compressible
+	// Image source PHOTOGRAPHIQUE (motif + grain), pas un dégradé lisse.
+	// C'est délibéré : un dégradé plat se compresse mieux en PNG qu'en WebP
+	// lossless (mesuré : 1150 o contre 5614 o), donc la politique
+	// never-serve-larger refuserait — à juste titre — de le servir, et cette
+	// étape ne testerait plus le chemin « WebP servi ». Le contenu bruité
+	// inverse le rapport (WebP ~3,5x plus petit), ce qui exerce la voie
+	// nominale ; le cas inverse est couvert explicitement à l'ÉTAPE 3c.
 	$im = imagecreatetruecolor( 400, 300 );
+	mt_srand( 7 );
 	for ( $y = 0; $y < 300; $y++ ) {
 		for ( $x = 0; $x < 400; $x++ ) {
-			imagesetpixel( $im, $x, $y, imagecolorallocate( $im, ( $x * 255 ) / 400, ( $y * 255 ) / 300, 128 ) );
+			$base = (int)( 128 + 90 * sin( $x / 23 ) * cos( $y / 17 ) );
+			$n = mt_rand( -28, 28 );
+			imagesetpixel( $im, $x, $y, imagecolorallocate( $im,
+				max( 0, min( 255, $base + $n ) ),
+				max( 0, min( 255, (int)( $base * 0.7 ) + $n ) ),
+				max( 0, min( 255, 255 - $base + $n ) )
+			) );
 		}
 	}
 	imagepng( $im, $origAbs );
@@ -195,6 +208,26 @@ namespace {
 	unlink( $thWebpDest );
 	$rew2 = $html; $rewriter->rewrite( $rew2 );
 	pass( is_file( $thWebpDest ) && strpos( $rew2, 'image/webp' ) !== false, "WebP régénéré à la volée + servi (budget P1)" );
+
+	// ============ ÉTAPE 3c — NEVER-SERVE-LARGER (la garantie) ============
+	// Un dérivé qui n'est PAS strictement plus petit que le fichier qu'il
+	// remplace ne doit jamais être référencé dans <picture> : le visiteur
+	// téléchargerait plus d'octets qu'avec l'original.
+	echo "\nÉTAPE 3c — Never-serve-larger : un WebP plus gros n'est jamais servi\n";
+	$thumbSize = filesize( $thumbAbs );
+	file_put_contents( $thWebpDest,
+		file_get_contents( $thWebpDest ) . str_repeat( "\0", max( 1, $thumbSize ) ) );
+	clearstatcache();
+	pass( filesize( $thWebpDest ) > $thumbSize,
+		"WebP gonflé à " . filesize( $thWebpDest ) . "o > miniature source {$thumbSize}o" );
+	$rew3 = $html;
+	$rewriter->rewrite( $rew3 );
+	pass( strpos( $rew3, '<picture>' ) === false && strpos( $rew3, 'image/webp' ) === false,
+		"aucun <picture> émis : le WebP plus gros n'est PAS servi" );
+	pass( $rew3 === $html,
+		"HTML laissé intact — l'<img> d'origine reste l'asset servi" );
+	pass( is_file( $thWebpDest ),
+		"le WebP perdant reste sur le disque (cache négatif : pas de ré-encodage au rendu suivant)" );
 
 	// ============ ÉTAPE 4 — 2e PASSE : zopflipng réel sur l'original ============
 	echo "\nÉTAPE 4 — 2e passe zopflipng réelle sur l'original PNG\n";

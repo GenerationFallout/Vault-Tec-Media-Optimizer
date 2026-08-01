@@ -110,11 +110,16 @@ class ZopfliOriginalProcessor {
 			// mark; the row stays pending and the whole step is retried later
 			// (recompressing an already-optimal file then yields saved=0, and the
 			// staleness check below still triggers the refresh).
-			$bytesChanged = $saved > 0
-				// Retry path: an earlier run shrank the file but its refresh
-				// failed before the row was marked. The DB-recorded size then
-				// disagrees with the on-disk size.
-				|| ( method_exists( $file, 'getSize' ) && $file->getSize() !== $afterSize );
+			// Retry path: an earlier run shrank the file but its refresh failed
+			// before the row was marked, so the DB-recorded size disagrees with
+			// the on-disk size. Compare as INTEGERS: getSize() may hand back a
+			// string (DB column) or false (stat failure), and a strict !== against
+			// those would report "changed" for every single file — turning the
+			// refresh into an unconditional purgeCache()+upgradeRow() on every
+			// row of a bulk run, and blocking any row whose refresh throws.
+			$dbSize = method_exists( $file, 'getSize' ) ? $file->getSize() : false;
+			$sizeDiverged = is_numeric( $dbSize ) && (int)$dbSize !== (int)$afterSize;
+			$bytesChanged = $saved > 0 || $sizeDiverged;
 
 			if ( $bytesChanged ) {
 				if ( !$this->refreshFileMetadata( $file ) ) {

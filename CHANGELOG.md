@@ -5,6 +5,62 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.9.1]
+
+### 🇫🇷 Résumé
+Audit du code **de la 1.9.0 elle-même** (le seul périmètre que les passes précédentes n'avaient jamais relu), et
+correction de trois défauts que j'y avais introduits. **(1)** L'invalidation du cache de statistiques avait été
+ajoutée sur `markComplete/markFailed/markSkipped`, c'est-à-dire le chemin **par-fichier** du rattrapage — alors
+que le code documentait explicitement, quelques lignes plus bas, qu'on ne l'invalide **délibérément pas** sur les
+écritures fréquentes. Un purge WAN par fichier maintient le cache en *hold-off* pendant toute la durée d'un
+rattrapage : le tableau de bord (qui s'auto-rafraîchit) recalculait alors les agrégats complets à **chaque**
+chargement — exactement l'inverse du cache introduit en 1.7.0. Invalidation désormais réservée aux actions
+**discrètes** (suppression d'un fichier, bouton « réinitialiser les échecs »). **(2)** La détection de
+divergence de taille de la 2ᵉ passe comparait en `!==` strict une valeur qui peut être une chaîne (colonne SQL)
+ou `false` : au moindre écart de type, chaque fichier d'un run déclenchait un `upgradeRow()` inutile, et toute
+exception bloquait la ligne à jamais. **(3)** La politique « jamais plus gros » était **contradictoire** entre
+ses deux implémentations : `ImageProcessor` **supprimait** le WebP perdant, `HtmlRewriter` le **conservait** en
+cache négatif — donc le rattrapage supprimait, le rendu suivant ré-encodait (en consommant le budget on-demand),
+un rattrapage ultérieur resupprimait, etc. Les deux conservent désormais le fichier.
+
+**⚠️ À savoir sur la configuration par défaut** : `$wgVaultTecMediaOptimizerWebPLosslessForPng = true` combiné à
+la politique « jamais plus gros » signifie qu'une **image à aplats** (icône, élément d'interface, dégradé lisse)
+n'obtient **aucun WebP servi** — mesuré sur la fixture du pipeline : PNG 1 150 o contre WebP lossless 5 614 o,
+soit 5× plus gros. C'est le comportement correct (le visiteur ne doit jamais télécharger davantage), mais si une
+bonne part de vos médias est de ce type, le gain WebP se concentrera sur les contenus **photographiques**
+(captures, artworks), où le rapport s'inverse nettement (mesuré : WebP ~3,5× plus petit).
+
+### Fixed
+- **Self-inflicted stats-cache regression** — `invalidateStatsCache()` was added in 1.9.0 to
+  `markComplete/markFailed/markSkipped`, the per-file backfill write path, contradicting the explicit in-code
+  decision ("we intentionally do NOT invalidate the stats cache on every thumbnail (could be very frequent).
+  The 15s TTL handles freshness."). `WANObjectCache::delete()` is a broadcast purge that opens a hold-off
+  window, so a running backfill kept the cache permanently held off and the auto-refreshing dashboard
+  recomputed the full aggregates on every load. Reverted on those three; kept on the discrete actions
+  (`delete()`, `resetFailedToPending()`); the misleading docblock now states the real policy and why.
+- **Fragile strict comparison in `ZopfliOriginalProcessor`** — the stale-size detection used
+  `$file->getSize() !== $afterSize`. `getSize()` may return a string (DB column) or `false` (stat failure), in
+  which case the strict comparison reports "changed" for *every* file: an unconditional
+  `purgeCache()`+`upgradeRow()` on every row of a bulk run, and any row whose refresh throws is never marked
+  and retried forever. Now compared as integers, with a numeric guard.
+- **Never-serve-larger was implemented inconsistently** — `ImageProcessor` deleted a losing WebP while
+  `HtmlRewriter` deliberately kept it as a negative cache. The backfill therefore deleted the file, the next
+  page render re-encoded it (spending a unit of the on-demand budget that legitimate thumbnails need),
+  discovered again that it loses, and a later backfill deleted it again. Both paths now keep the file: the
+  cheap "exists but not smaller" check short-circuits forever after. The row still records `webp = 0`, and
+  `HtmlRewriter`'s serve-time size comparison remains the actual guarantee.
+
+### Tests
+- **`tests/integration/pipeline.php` — the never-serve-larger guarantee is now actually tested** (new step 3c):
+  the thumbnail's WebP is inflated past its source and the **real** `HtmlRewriter` is asserted to emit no
+  `<picture>`, to leave the HTML untouched, and to keep the losing file on disk. That guarantee previously had
+  no coverage at all.
+- **Pipeline fixture switched from a smooth gradient to photographic content** — the gradient's lossless WebP is
+  5× *larger* than its PNG, so under the 1.9.0 policy the serve path silently stopped being exercised and three
+  assertions had been failing unnoticed (they were masked by only reading the run's last line). The fixture now
+  exercises the nominal "WebP wins and is served" path, while step 3c covers the refusal. Suite: `gif` 17/17,
+  `gifAnimatedWebp` 26/26, `pipeline` 20/20.
+
 ## [1.9.0]
 
 ### 🇫🇷 Résumé

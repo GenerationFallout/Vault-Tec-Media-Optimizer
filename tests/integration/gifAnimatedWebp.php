@@ -291,14 +291,20 @@ namespace {
 	check( 'animated: original never grew (keep-if-smaller)', filesize( "$IMG/$animRel" ) <= $animBefore );
 
 	// --- Still GIF (flat colors: its WebP comes out LARGER than the GIF) ---
-	// Never-serve-larger policy: the WebP is discarded, the row records
-	// success with webp=0 and the original GIF stays the served asset.
+	// Never-serve-larger policy: the row records success with webp=0 so the
+	// original GIF stays the served asset, and the losing WebP is LEFT on disk
+	// as a negative cache (deleting it would make the render path re-encode it
+	// on every view, burning the on-demand budget for nothing).
 	$okS = $processor->processByName( 'Still.gif' );
 	$stillWebpDisk = "$work/images_webp/b/bb/Still.webp";
 	check( 'still: process() = true', $okS === true );
 	check( 'still: recorded complete', ( $record->rows['Still.gif']['status'] ?? '' ) === 'complete' );
-	check( 'still (webp larger): WebP discarded, not on disk', !is_file( $stillWebpDisk ) );
-	check( 'still (webp larger): webp size recorded 0', ( $record->rows['Still.gif']['webp'] ?? -1 ) === 0 );
+	check( 'still (webp larger): recorded as no-WebP (webp=0)',
+		( $record->rows['Still.gif']['webp'] ?? -1 ) === 0 );
+	check( 'still (webp larger): losing WebP kept on disk as negative cache',
+		is_file( $stillWebpDisk ) );
+	check( 'still (webp larger): the kept WebP really is >= the original',
+		is_file( $stillWebpDisk ) && filesize( $stillWebpDisk ) >= filesize( "$IMG/$stillRel" ) );
 
 	// --- Photo-like GIF (gradients: its WebP is genuinely smaller) ---
 	$okP = $processor->processByName( 'Photo.gif' );

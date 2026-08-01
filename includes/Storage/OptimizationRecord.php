@@ -118,7 +118,6 @@ class OptimizationRecord {
 			->set( $row )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -146,7 +145,6 @@ class OptimizationRecord {
 			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -169,7 +167,6 @@ class OptimizationRecord {
 			->set( $set )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -181,6 +178,9 @@ class OptimizationRecord {
 			->where( [ 'io_img_name' => $imgName ] )
 			->caller( __METHOD__ )
 			->execute();
+		// Discrete, user-triggered action (a file was deleted): invalidating is
+		// cheap here and the dashboard should reflect it at once. Contrast with
+		// the per-file mark* methods below, which deliberately do NOT invalidate.
 		$this->invalidateStatsCache();
 	}
 
@@ -228,8 +228,21 @@ class OptimizationRecord {
 	}
 
 	/**
-	 * Invalidate the stats cache. Called after writes so the dashboard
-	 * doesn't show a 15-second-old snapshot just after a backfill batch.
+	 * Invalidate the stats cache.
+	 *
+	 * Called ONLY from discrete, user-triggered actions (a file deletion, the
+	 * "reset failed" button) — never from the per-file write path.
+	 *
+	 * Why not on every write: markComplete/markFailed/markSkipped (and the
+	 * second-pass markers) run once per FILE during a backfill, i.e. thousands
+	 * of times in a row. WANObjectCache::delete() is a broadcast purge that also
+	 * opens a hold-off window during which getWithSetCallback refuses to store a
+	 * value — so invalidating there would keep the cache permanently held off
+	 * for the whole duration of a backfill, and the auto-refreshing dashboard
+	 * would recompute the full aggregate queries on every single load. That is
+	 * the exact opposite of what this cache is for. The {@see self::STATS_TTL}
+	 * second TTL is what keeps those numbers fresh, and it is enough: the
+	 * dashboard is a progress indicator, not an accounting ledger.
 	 */
 	public function invalidateStatsCache(): void {
 		$this->cache->delete( $this->cache->makeKey( self::STATS_CACHE_KEY ) );
@@ -406,7 +419,6 @@ class OptimizationRecord {
 			->where( [ 'io_img_name' => $imgName ] )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -434,7 +446,6 @@ class OptimizationRecord {
 			->andWhere( $db->expr( 'io_png_zopfli_size', '=', null ) )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -474,7 +485,6 @@ class OptimizationRecord {
 			->where( [ 'io_img_name' => $imgName ] )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
@@ -505,7 +515,6 @@ class OptimizationRecord {
 			->where( [ 'io_img_name' => $imgName ] )
 			->caller( __METHOD__ )
 			->execute();
-		$this->invalidateStatsCache();
 	}
 
 	/**
