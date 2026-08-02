@@ -5,6 +5,68 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.9.3]
+
+### 🇫🇷 Résumé
+Suite et fin de l'audit en conditions réelles : deux **hooks de cycle de vie manquants** sont désormais gérés.
+**Renommer** un fichier laissait tous ses dérivés orphelins pour toujours, transformait sa ligne de suivi en
+fantôme (décrivant un fichier inexistant) pendant que le nouveau nom disparaissait des statistiques, et exposait
+un envoi ultérieur sous le nom libéré à hériter des anciens dérivés. **Restaurer** un fichier supprimé le
+remettait sur le disque sans jamais régénérer le WebP de l'original ni sa ligne — le fichier restauré servait
+donc des octets non optimisés indéfiniment. Vérifié sur une instance réelle : après renommage, 0 orphelin et
+ligne fantôme purgée, le suivi suit le fichier ; après restauration, WebP régénéré et ligne rétablie.
+
+### Added
+- **`PageMoveComplete` handler** — a file move now purges the old name's derivatives (original WebP + the whole
+  thumbnail directory), drops its tracking row, and queues the new name for optimization. Previously nothing
+  observed moves at all: the orphans were unreclaimable, `Special:VTMOStats` lost the file, and a later upload
+  taking the freed name inherited the stale derivatives (the mtime staleness guard added in the same audit
+  catches that at serve time, but leaving the orphans behind was still wrong).
+- **`FileUndeleteComplete` handler** — restoring a deleted file purges any derivative predating the deletion
+  (it may depict different pixels) and re-queues the file. The render path only ever generates *thumbnail*
+  derivatives on demand, so without this the restored original served unoptimized bytes and stayed missing from
+  the statistics until a manual backfill.
+
+## [1.9.2]
+
+### 🇫🇷 Résumé
+Cinq défauts trouvés en attaquant une installation MediaWiki 1.46 réelle (audit inversé multi-agent), chacun
+corrigé et **reproduit puis vérifié sur l'instance vivante**. Le plus sensible n'est pas un problème de disque
+mais de **confidentialité** : un `kill -9` laisse derrière lui une copie complète et publiquement téléchargeable
+d'un fichier envoyé, qui **survit à la suppression du média** à une URL devinable, sans que MediaWiki n'en garde
+la moindre trace. Le mécanisme est retors — l'encodeur externe lancé par `proc_open` est réattaché à init et
+écrit sa sortie *après* la mort du processus PHP, donc aucun gestionnaire d'arrêt ne peut nettoyer.
+
+### Added
+- **`TempFileSweeper` + `maintenance/cleanupTempFiles.php`** — garbage collection of abandoned optimizer temps.
+  Only this extension's own temp shapes are considered, and only past `--min-age` (default 3600 s) so a running
+  encode is never raced; dry-run unless `--apply`. `optimizeImages.php` also sweeps opportunistically at start
+  (`--no-temp-sweep` to skip). Measured on the live wiki: 99 MB leaked from 15 kills of 2 files, none of it
+  reclaimable by any pre-existing code path.
+
+### Fixed
+- **Long filenames starved the entire on-demand render budget** — a derived basename over the filesystem's
+  `NAME_MAX` can never be written, so the failure was never negatively cached (no file ever lands on disk) and
+  was retried on EVERY page view, burning one budget unit each time. Measured: 5 failures per render, i.e. the
+  whole default budget, so the healthy images on the same page were never encoded at all. The length is now
+  checked before any budget is spent. Verified: warnings per render 15 → 0, and the starved page went from
+  0 to 3 `<picture>`.
+- **No pixel-area guard (decompression bombs)** — byte size says nothing about decoded cost: a 420 KB PNG
+  declaring 12000×12000 took 34 s and peaked at 1.4 GB RSS, and job runners typically have `memory_limit = -1`.
+  `shouldSkip()` now reuses core's own `$wgMaxImageArea`, so a file MediaWiki refuses to thumbnail is not one we
+  burn minutes and gigabytes on either. Verified: 34 s → 1 s, recorded as skipped with the dimensions in the
+  message. Guarded by `method_exists()` so non-`LocalFile` repos degrade gracefully.
+- **`markComplete()` destroyed second-pass bookkeeping and the true original size** — it reset
+  `io_png_zopfli_size` to NULL and overwrote `io_original_size` with the size on disk *right now* (which for an
+  already-optimized file is the optimized size). Running the optimize job after the zopfli job therefore put the
+  row back into the "pending second pass" selection — ~31 s of zopflipng re-run per backfill wave, forever, for
+  0 bytes gained — and erased the baseline, so `Special:VTMOStats` reported ~0 savings for a file that really
+  did save. Both columns are now preserved on UPDATE; a genuinely new version still gets a fresh baseline
+  because the reupload path drops the row.
+- **Traversal check rejected legitimate filenames** — it tested for `..` as a *substring*, so a title like
+  `v..2.png` (which MediaWiki allows) was denied any servable derivative. Now tests for a real `..` path
+  segment, unit-checked against six cases.
+
 ## [1.9.1]
 
 ### 🇫🇷 Résumé

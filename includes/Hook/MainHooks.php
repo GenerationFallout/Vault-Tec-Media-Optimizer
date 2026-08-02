@@ -11,10 +11,12 @@ use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\WebPRepo;
 use MediaWiki\Hook\FileDeleteCompleteHook;
 use MediaWiki\Hook\FileTransformedHook;
 use MediaWiki\Hook\FileUploadHook;
+use MediaWiki\Hook\PageMoveCompleteHook;
 use MediaWiki\JobQueue\JobQueueGroup;
 use MediaWiki\JobQueue\JobSpecification;
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\Output\Hook\OutputPageBeforeHTMLHook;
+use MediaWiki\Specials\Hook\FileUndeleteCompleteHook;
 use MediaWiki\Title\Title;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -33,6 +35,8 @@ class MainHooks implements
 	FileUploadHook,
 	FileDeleteCompleteHook,
 	FileTransformedHook,
+	PageMoveCompleteHook,
+	FileUndeleteCompleteHook,
 	OutputPageBeforeHTMLHook
 {
 	private HtmlRewriter $htmlRewriter;
@@ -154,6 +158,123 @@ class MainHooks implements
 			);
 		} catch ( Throwable $e ) {
 			$this->logger->warning( 'Could not enqueue optimization for {name}: {msg}',
+				[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * A file move renames the physical original, but our derived tree and our
+	 * tracking row are keyed by the OLD name. Without this handler:
+	 *  - every derivative of the old name is orphaned on disk forever (nothing
+	 *    ever references or reclaims it);
+	 *  - the tracking row becomes a phantom describing a file that no longer
+	 *    exists, while the new name has no row at all — so it silently drops
+	 *    out of Special:VTMOStats until someone runs a backfill;
+	 *  - worst of all, a LATER upload taking the freed old name would inherit
+	 *    those derivatives. (The mtime staleness guard now catches that at
+	 *    serve time, but leaving the orphans around is still wrong.)
+	 *
+	 * So: purge the old name's derivatives, drop its row, and queue the new
+	 * name for optimization.
+	 */
+	public function onPageMoveComplete( $old, $new, $user, $pageid, $redirid, $reason, $revision ) {
+		if ( !$this->options->get( 'VaultTecMediaOptimizerEnabled' ) ) {
+			return;
+		}
+		// Only file moves matter; an ordinary article move touches no media.
+		if ( $old->getNamespace() !== NS_FILE ) {
+			return;
+		}
+
+		$oldName = $old->getDBkey();
+		$newName = $new->getDBkey();
+		if ( $oldName === '' || $oldName === $newName ) {
+			return;
+		}
+
+		try {
+			// The physical file has already moved, so the old path no longer
+			// resolves; address the old derivatives by name instead.
+			$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
+			$oldTitle = Title::makeTitleSafe( NS_FILE, $oldName );
+			if ( $oldTitle ) {
+				$hash = md5( $oldName );
+				$oldRel = substr( $hash, 0, 1 ) . '/' . substr( $hash, 0, 2 ) . '/' . $oldName;
+				$this->webpRepo->deleteWebP( $uploadDir . '/' . $oldRel );
+			}
+			$this->webpRepo->deleteWebPThumbDir( $oldName );
+			$this->record->delete( $oldName );
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Derived cleanup after move {old} -> {new} failed: {msg}',
+				[ 'old' => $oldName, 'new' => $newName, 'msg' => $e->getMessage() ] );
+		}
+
+		// Re-optimize under the new name so it reappears in the stats and gets
+		// its derivatives back. Skipped in large-wiki mode, where the admin
+		// drives optimization from the CLI on their own schedule.
+		if ( !$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' ) || $newName === '' ) {
+			return;
+		}
+		$newTitle = Title::makeTitleSafe( NS_FILE, $newName );
+		if ( !$newTitle ) {
+			return;
+		}
+		try {
+			$this->jobQueueGroup->lazyPush(
+				new JobSpecification(
+					'VaultTecMediaOptimizerOptimizeImage',
+					[ 'imgName' => $newName ],
+					[ 'removeDuplicates' => true ],
+					$newTitle
+				)
+			);
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Could not enqueue optimization after move for {name}: {msg}',
+				[ 'name' => $newName, 'msg' => $e->getMessage() ] );
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 *
+	 * Restoring a deleted file puts the original back on disk, but our
+	 * derivatives and tracking row were (correctly) removed when it was
+	 * deleted. Nothing regenerates the ORIGINAL's WebP on its own — the
+	 * render path only ever generates thumbnails on demand — so without this
+	 * the restored file would silently serve unoptimized bytes and stay
+	 * missing from Special:VTMOStats until someone ran a backfill by hand.
+	 */
+	public function onFileUndeleteComplete( $title, $fileVersions, $user, $reason ) {
+		if ( !$this->options->get( 'VaultTecMediaOptimizerEnabled' )
+			|| !$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' )
+		) {
+			return;
+		}
+		$imgName = $title->getDBkey();
+		if ( $imgName === '' ) {
+			return;
+		}
+		// Any derivative still sitting at this name predates the deletion and
+		// may depict different pixels; drop it rather than trust it.
+		try {
+			$this->webpRepo->deleteWebPThumbDir( $imgName );
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Thumb purge after undelete failed for {name}: {msg}',
+				[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+		}
+		try {
+			$this->jobQueueGroup->lazyPush(
+				new JobSpecification(
+					'VaultTecMediaOptimizerOptimizeImage',
+					[ 'imgName' => $imgName ],
+					[ 'removeDuplicates' => true ],
+					$title
+				)
+			);
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Could not enqueue optimization after undelete for {name}: {msg}',
 				[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
 		}
 	}

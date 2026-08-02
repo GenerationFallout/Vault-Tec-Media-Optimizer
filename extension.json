@@ -1,7 +1,7 @@
 {
 	"name": "VaultTecMediaOptimizer",
 	"namemsg": "vaulttecmediaoptimizer-extensionname",
-	"version": "1.9.2",
+	"version": "1.9.3",
 	"author": [
 		"[https://fallout-wiki.com Archives de Vault-Tec]"
 	],
@@ -48,7 +48,9 @@
 		"FileDeleteComplete": "main",
 		"FileTransformed": "main",
 		"OutputPageBeforeHTML": "main",
-		"LoadExtensionSchemaUpdates": "schema"
+		"LoadExtensionSchemaUpdates": "schema",
+		"PageMoveComplete": "main",
+		"FileUndeleteComplete": "main"
 	},
 	"SpecialPages": {
 		"VTMOStatus": {
