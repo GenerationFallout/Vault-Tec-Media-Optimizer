@@ -82,6 +82,7 @@ namespace {
 	require "$R/Storage/WebPRepo.php";
 	require "$R/Service/GifAnimationDetector.php";
 	require "$R/Service/GifOptimizer.php";
+	require "$R/Service/WebPEncodePolicy.php";
 	require "$R/Service/ImageProcessor.php";
 	require "$R/Service/HtmlRewriter.php";
 	require "$R/Service/PngRecompressorInterface.php";

@@ -129,6 +129,7 @@ namespace {
 	require "$R/Optimizer/OptimizerFactory.php";
 	require "$R/Storage/WebPRepo.php";
 	require "$R/Service/GifOptimizer.php";
+	require "$R/Service/WebPEncodePolicy.php";
 	require "$R/Service/ImageProcessor.php";
 
 	$NS = 'MediaWiki\\Extension\\VaultTecMediaOptimizer\\';

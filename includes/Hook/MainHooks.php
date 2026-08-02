@@ -6,6 +6,7 @@ use MediaWiki\Config\ServiceOptions;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Optimizer\OptimizerFactory;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\HtmlRewriter;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Service\PngRecompressorInterface;
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\WebPEncodePolicy;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\OptimizationRecord;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\WebPRepo;
 use MediaWiki\Hook\FileDeleteCompleteHook;
@@ -16,6 +17,7 @@ use MediaWiki\JobQueue\JobQueueGroup;
 use MediaWiki\JobQueue\JobSpecification;
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\Output\Hook\OutputPageBeforeHTMLHook;
+use MediaWiki\Page\Hook\PageDeleteCompleteHook;
 use MediaWiki\Specials\Hook\FileUndeleteCompleteHook;
 use MediaWiki\Title\Title;
 use Psr\Log\LoggerInterface;
@@ -37,6 +39,7 @@ class MainHooks implements
 	FileTransformedHook,
 	PageMoveCompleteHook,
 	FileUndeleteCompleteHook,
+	PageDeleteCompleteHook,
 	OutputPageBeforeHTMLHook
 {
 	private HtmlRewriter $htmlRewriter;
@@ -282,6 +285,52 @@ class MainHooks implements
 	/**
 	 * @inheritDoc
 	 *
+	 * Belt-and-braces deletion cleanup.
+	 *
+	 * `FileDeleteComplete` is the natural hook, but core fires it from exactly
+	 * one place — FileDeleteForm::doDelete() — which the web form and the API
+	 * both go through, while `maintenance/deleteBatch.php` does not: it calls
+	 * LocalFile::deleteFile() directly (deleteBatch.php:110) and then
+	 * DeletePage (deleteBatch.php:115). So a CLI batch deletion used to leave
+	 * the derivatives and the tracking row behind entirely, and a later upload
+	 * under the same name inherited them.
+	 *
+	 * `PageDeleteComplete` fires from DeletePage for every deletion path, so
+	 * handling it here closes that gap at the source rather than relying on the
+	 * mtime staleness guard to paper over it at serve time. Idempotent: on the
+	 * paths where FileDeleteComplete already ran, the derivatives are simply
+	 * gone and removing them again is a no-op.
+	 */
+	public function onPageDeleteComplete( $page, $deleter, $reason, $pageID,
+		$deletedRev, $logEntry, $archivedRevisionCount
+	) {
+		if ( !$this->options->get( 'VaultTecMediaOptimizerEnabled' )
+			|| $page->getNamespace() !== NS_FILE
+		) {
+			return;
+		}
+		$imgName = $page->getDBkey();
+		if ( $imgName === '' ) {
+			return;
+		}
+		try {
+			// The physical original is already gone, so address the derivatives
+			// by name (same hash layout MediaWiki uses).
+			$hash = md5( $imgName );
+			$rel = substr( $hash, 0, 1 ) . '/' . substr( $hash, 0, 2 ) . '/' . $imgName;
+			$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
+			$this->webpRepo->deleteWebP( $uploadDir . '/' . $rel );
+			$this->webpRepo->deleteWebPThumbDir( $imgName );
+			$this->record->delete( $imgName );
+		} catch ( Throwable $e ) {
+			$this->logger->warning( 'Derived cleanup after page deletion of {name} failed: {msg}',
+				[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 *
 	 * Cleans up the WebP file and DB record on deletion of the original.
 	 */
 	public function onFileDeleteComplete( $file, $oldimage, $article, $user, $reason ) {
@@ -422,14 +471,9 @@ class MainHooks implements
 
 		try {
 			$optimizer = $this->optimizerFactory->getOptimizer();
-			$lossless = ( $mime === 'image/png' )
-				&& $this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			// Clamp to libwebp's 0-100 range (GD throws on negatives; vips
-			// silently clamps; a non-numeric value casts to 0).
-			$quality = min( 100, max( 0,
-				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
-
-			$ok = $optimizer->convertToWebP( $tmpThumbPath, $webpDest, $lossless, $quality );
+			// Same encoding policy as everywhere else (lossless / lossy / auto).
+			$policy = new WebPEncodePolicy( $this->options, $this->logger );
+			$ok = $policy->encodeBest( $optimizer, $tmpThumbPath, $webpDest, $mime );
 			if ( !$ok ) {
 				$detail = $optimizer->getLastError() ?? 'no detail';
 				$this->logger->warning( 'WebP thumb generation failed for {name} ({dest}): {detail}', [

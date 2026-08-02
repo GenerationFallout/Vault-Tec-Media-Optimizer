@@ -388,7 +388,8 @@ class PrerequisiteChecker {
 			$useQueue ? 'enabled' : 'disabled',
 			$useQueue
 				? 'Uploads enqueue a background optimization job.'
-				: 'Large-wiki mode: uploads are NOT auto-optimized. Run maintenance/optimizeImages.php from the CLI. Thumbnails still get WebP on-demand at render.' );
+				: 'Large-wiki mode: uploads are NOT auto-optimized. Run maintenance/optimizeImages.php from the CLI. '
+					. 'Thumbnails still get WebP on-demand at render.' );
 
 		return $checks;
 	}

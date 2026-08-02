@@ -1,7 +1,7 @@
 {
 	"name": "VaultTecMediaOptimizer",
 	"namemsg": "vaulttecmediaoptimizer-extensionname",
-	"version": "1.9.3",
+	"version": "1.10.0",
 	"author": [
 		"[https://fallout-wiki.com Archives de Vault-Tec]"
 	],
@@ -50,7 +50,8 @@
 		"OutputPageBeforeHTML": "main",
 		"LoadExtensionSchemaUpdates": "schema",
 		"PageMoveComplete": "main",
-		"FileUndeleteComplete": "main"
+		"FileUndeleteComplete": "main",
+		"PageDeleteComplete": "main"
 	},
 	"SpecialPages": {
 		"VTMOStatus": {
@@ -132,7 +133,7 @@
 		},
 		"VaultTecMediaOptimizerWebPLosslessForPng": {
 			"value": true,
-			"description": "Use lossless WebP for PNG sources (preserves transparency and crisp UI elements)."
+			"description": "How PNG sources are encoded to WebP: true (default) always lossless — pixel-exact, safest for crisp UI art; false always lossy at $wgVaultTecMediaOptimizerWebPQuality; 'auto' encodes both and keeps whichever is smaller. 'auto' costs one extra encode (it runs in the job/CLI path, never in a visitor's request) and is worth it on wikis whose PNGs are mostly screenshots: measured on photographic content, lossless produced 82,586 bytes where lossy produced 47,968 — 42% larger for no visible benefit. On flat UI art the PNG itself beats both encodings, and the never-serve-larger guard already handles that case."
 		},
 		"VaultTecMediaOptimizerOptimizeOriginals": {
 			"value": true,

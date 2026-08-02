@@ -5,6 +5,43 @@ The bundled PDF guide documents the **1.4.1** baseline; entries below are relati
 
 ---
 
+## [1.10.0]
+
+### 🇫🇷 Résumé
+Trois améliorations issues de la revue : **(1)** un mode d'encodage PNG **`'auto'`** qui essaie les deux
+encodages et garde le plus petit — mesuré sur l'instance réelle, un PNG photographique passe de **186 400 à
+107 050 octets, soit −43 %** ; **(2)** le hook `PageDeleteComplete`, qui ferme à la source le trou
+`deleteBatch.php` que seule la garde de fraîcheur rattrapait ; **(3)** une **suite de tests PHPUnit** (53 tests,
+77 assertions) et une **CI GitHub Actions**, là où l'extension n'avait aucun test automatisé ni aucune
+vérification déclenchée.
+
+### Added
+- **`'auto'` mode for `$wgVaultTecMediaOptimizerWebPLosslessForPng`** — the setting used to be a boolean applied
+  to every PNG alike, but the right answer depends on the content. Measured: flat UI art 1 162 B as PNG vs
+  2 606 B lossless vs 1 718 B lossy (the PNG wins outright, and the never-serve-larger guard already handles
+  that); photographic content 287 072 B as PNG vs 82 586 B lossless vs 47 968 B lossy — so on a wiki whose PNGs
+  are mostly screenshots the lossless default served **42% more bytes than necessary**. `'auto'` encodes both
+  and keeps the smaller, at the cost of one extra encode that runs in the job/CLI path, never in a visitor's
+  request. Verified end to end on a live wiki: 186 400 B → 107 050 B. The default stays `true` (pixel-exact).
+  The choice now lives in one place, `WebPEncodePolicy`, shared by the upload, thumbnail and render paths.
+- **`PageDeleteComplete` handler** — `FileDeleteComplete` is fired by core from exactly one place
+  (`FileDeleteForm::doDelete()`), which the web form and the API go through but `maintenance/deleteBatch.php`
+  does not. A CLI batch deletion therefore left the derivatives and the tracking row behind, and a later upload
+  under the same name inherited them. `PageDeleteComplete` fires from `DeletePage` on every path, so the gap is
+  now closed at the source instead of being papered over at serve time by the mtime staleness guard. Verified:
+  `deleteBatch` on a live wiki left 1 WebP + 1 row before, 0 and 0 after.
+- **PHPUnit unit tests (`tests/phpunit/unit/`, 53 tests / 77 assertions)** — the extension had none. They cover
+  the three classes the audits found the most defects in, and every case is a regression guard rather than a
+  smoke test: `GifAnimationDetector` (multi-frame GIFs with no GCE, and a Global Color Table whose last byte is
+  not 0x00 — the two shapes the old byte-pattern heuristic missed; plus seven malformed inputs and a
+  non-termination guard), `WebPRepo` (the six invalid derived-directory names that used to aim the purge at
+  MediaWiki's real tree, query-string URL building, `..` as a filename vs as a path segment, the NAME_MAX
+  guard) and `HtmlRewriter` (local-URL recognition, and `<picture>` idempotency for a wrapper longer than the
+  old fixed look-back window). They run in MediaWiki's own `extensions:unit` suite.
+- **GitHub Actions CI** — nothing ran the tooling added in 1.9.3. The workflow now runs `composer test`
+  (parallel-lint + phpcs + minus-x) on PHP 8.1 and 8.3, installs a real MediaWiki with SQLite to run the PHPUnit
+  suite, and runs eslint/stylelint/banana-checker for the JS, CSS and i18n.
+
 ## [1.9.3]
 
 ### 🇫🇷 Résumé

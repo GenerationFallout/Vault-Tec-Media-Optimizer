@@ -230,14 +230,9 @@ class ImageProcessor {
 				return false;
 			}
 
-			$lossless = ( $mime === 'image/png' )
-				&& $this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			// Clamp to libwebp's 0-100 range (GD throws on negatives; vips
-			// silently clamps; a non-numeric value casts to 0).
-			$quality = min( 100, max( 0,
-				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
-
-			$ok = $optimizer->convertToWebP( $path, $webpPath, $lossless, $quality );
+			// Encoding choice (lossless / lossy / auto) lives in one place.
+			$policy = new WebPEncodePolicy( $this->options, $this->logger );
+			$ok = $policy->encodeBest( $optimizer, $path, $webpPath, $mime );
 			if ( !$ok ) {
 				$detail = $optimizer->getLastError();
 				// An animated GIF that the backend cannot encode to animated WebP

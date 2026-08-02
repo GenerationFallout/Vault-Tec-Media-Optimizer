@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'claude/**' ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP lint, sniffs and unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The extension declares ">= 8.1"; test the floor and a current release.
+        php: [ '8.1', '8.3' ]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: extension
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, fileinfo, exif, intl, mbstring, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Install extension dev dependencies
+        working-directory: extension
+        run: composer install --prefer-dist --no-progress
+
+      # parallel-lint + phpcs (MediaWiki standard) + minus-x, i.e. "composer test"
+      - name: Lint, sniffs and executable-bit check
+        working-directory: extension
+        run: composer test
+
+      # Unit tests need MediaWiki's PHPUnit bootstrap and MediaWikiUnitTestCase,
+      # so run them inside a real core checkout with the extension linked in.
+      - name: Check out MediaWiki core
+        run: |
+          git clone --depth 1 --branch REL1_44 \
+            https://gerrit.wikimedia.org/r/mediawiki/core.git core
+
+      - name: Wire the extension into core
+        run: |
+          mkdir -p core/extensions
+          ln -s "$GITHUB_WORKSPACE/extension" core/extensions/VaultTecMediaOptimizer
+
+      - name: Install core dependencies
+        working-directory: core
+        run: composer install --prefer-dist --no-progress
+
+      - name: Install MediaWiki (SQLite)
+        working-directory: core
+        run: |
+          php maintenance/run.php install \
+            --dbtype=sqlite --dbpath="$(pwd)/data" \
+            --scriptpath="" --pass=ci-admin-password \
+            CIWiki Admin
+          echo "wfLoadExtension( 'VaultTecMediaOptimizer' );" >> LocalSettings.php
+          php maintenance/run.php update --quick
+
+      - name: PHPUnit (extension unit suite)
+        working-directory: core
+        run: |
+          php tests/phpunit/generatePHPUnitConfig.php
+          php vendor/bin/phpunit -c phpunit.xml \
+            --testsuite "extensions:unit" --no-coverage
+
+  frontend:
+    name: JS, CSS and i18n
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No package-lock.json is committed (it is gitignored), so resolve fresh.
+      - run: npm install --no-audit --no-fund
+
+      # eslint + stylelint + banana-checker (i18n completeness) via Gruntfile.
+      - run: npm test

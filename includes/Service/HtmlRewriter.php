@@ -321,15 +321,9 @@ class HtmlRewriter {
 
 		try {
 			$optimizer = $this->optimizerFactory->getOptimizer();
-			$lossless = ( $mime === 'image/png' )
-				&& (bool)$this->options->get( 'VaultTecMediaOptimizerWebPLosslessForPng' );
-			// Clamp to libwebp's 0-100 range: GD throws a ValueError on negative
-			// values and a non-numeric config casts to 0; misconfiguration must
-			// not break every encode.
-			$quality = min( 100, max( 0,
-				(int)$this->options->get( 'VaultTecMediaOptimizerWebPQuality' ) ) );
-
-			$ok = $optimizer->convertToWebP( $srcThumbPath, $webpPath, $lossless, $quality );
+			// Same encoding policy as the job/CLI path (lossless / lossy / auto).
+			$policy = new WebPEncodePolicy( $this->options, $this->logger );
+			$ok = $policy->encodeBest( $optimizer, $srcThumbPath, $webpPath, $mime );
 			if ( !$ok ) {
 				$this->logger->debug( 'On-demand WebP generation failed for {src}: {err}', [
 					'src' => $srcThumbPath,
