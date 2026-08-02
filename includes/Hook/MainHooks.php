@@ -75,6 +75,43 @@ class MainHooks implements
 			return;
 		}
 
+		$imgName = $file->getName();
+
+		// PURGE FIRST, unconditionally.
+		//
+		// On reupload MediaWiki regenerates thumbnails at the SAME paths, so
+		// every derived file we already hold now depicts the PREVIOUS image.
+		// Both serving guards (onFileTransformed's skip-if-exists and
+		// HtmlRewriter's exists-and-smaller fast path) would happily keep
+		// serving those stale pixels forever.
+		//
+		// This block must run BEFORE every early return below:
+		//  - before the UseJobQueue check, because in large-wiki mode no job
+		//    ever runs to fix it up, so a stale derivative would be permanent
+		//    (the docblock's promise that "thumbnails still get their WebP
+		//    on-demand" is exactly what breaks);
+		//  - before the MIME/Title checks, since a file we once optimized may
+		//    no longer match a narrowed $wgVaultTecMediaOptimizerFormats.
+		//
+		// We also drop the ORIGINAL's WebP, not just the thumbnails. Leaving it
+		// for the job to overwrite means it keeps being served — with the old
+		// pixels — for the whole window until the queue is processed, which is
+		// unbounded under the $wgJobRunRate = 0 setup this extension's own docs
+		// recommend. No derivative is always better than a wrong derivative.
+		if ( $reupload ) {
+			try {
+				$this->webpRepo->deleteWebPThumbDir( $imgName );
+				$uploadDir = rtrim( $this->options->get( 'UploadDirectory' ), '/' );
+				$rel = $file->getRel();
+				if ( is_string( $rel ) && $rel !== '' ) {
+					$this->webpRepo->deleteWebP( $uploadDir . '/' . $rel );
+				}
+			} catch ( Throwable $e ) {
+				$this->logger->warning( 'WebP purge on reupload failed for {name}: {msg}',
+					[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
+			}
+		}
+
 		// Large-wiki mode: when the job queue is disabled, uploads are NOT
 		// auto-enqueued. The admin optimizes originals on their own schedule via
 		// maintenance/optimizeImages.php; thumbnails still get their WebP
@@ -82,8 +119,6 @@ class MainHooks implements
 		if ( !$this->options->get( 'VaultTecMediaOptimizerUseJobQueue' ) ) {
 			return;
 		}
-
-		$imgName = $file->getName();
 
 		// Only enqueue if the file's MIME type matches what we handle.
 		// (Cheap optimization to avoid clogging the queue with PDFs etc.)
@@ -96,20 +131,6 @@ class MainHooks implements
 		$title = Title::makeTitleSafe( NS_FILE, $imgName );
 		if ( !$title ) {
 			return;
-		}
-
-		// On reupload, MediaWiki regenerates thumbnails at the same paths; our
-		// per-thumb skip-if-exists guard in onFileTransformed would then keep
-		// serving WebP rendered from the PREVIOUS image forever. Drop the whole
-		// WebP thumb directory for this file so every size is re-encoded from
-		// the new pixels (the original's WebP is overwritten by the job below).
-		if ( $reupload ) {
-			try {
-				$this->webpRepo->deleteWebPThumbDir( $imgName );
-			} catch ( Throwable $e ) {
-				$this->logger->warning( 'WebP thumb purge on reupload failed for {name}: {msg}',
-					[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
-			}
 		}
 
 		// lazyPush + try/catch: this hook runs inside the upload's PRESEND
