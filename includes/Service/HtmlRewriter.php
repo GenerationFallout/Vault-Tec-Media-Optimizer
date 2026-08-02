@@ -248,13 +248,15 @@ class HtmlRewriter {
 		$webpPath = $info[1];
 		$srcThumbPath = $info[2] ?? null;
 
-		// Already present AND non-empty — the common case after warm-up. A
-		// leftover 0-byte/truncated WebP (e.g. from an interrupted pre-atomic
-		// write, disk-full, or tampering) is treated as missing: a <source>
-		// pointing at it would break the image with no fallback, so we
+		// Already present, non-empty AND not stale — the common case after
+		// warm-up. A leftover 0-byte/truncated WebP (e.g. from an interrupted
+		// pre-atomic write, disk-full, or tampering) is treated as missing: a
+		// <source> pointing at it would break the image with no fallback, so we
 		// regenerate instead. A present file is still subject to the
 		// never-serve-larger guard below.
-		if ( is_file( $webpPath ) && filesize( $webpPath ) > 0 ) {
+		if ( is_file( $webpPath ) && filesize( $webpPath ) > 0
+			&& !$this->isStale( $webpPath, $srcThumbPath )
+		) {
 			return $this->isWorthServing( $webpPath, $srcThumbPath );
 		}
 
@@ -340,6 +342,44 @@ class HtmlRewriter {
 			] );
 			return false;
 		}
+	}
+
+	/**
+	 * Whether a derived file is OLDER than the source it was made from, i.e.
+	 * it depicts pixels that no longer exist.
+	 *
+	 * Safety net for every lifecycle path that can place a *different* image at
+	 * a path we already hold a derivative for, without going through the
+	 * reupload purge:
+	 *  - a file renamed/moved away, then a new upload taking the freed name
+	 *    (no move hook is registered, and a fresh upload is not a $reupload, so
+	 *    nothing purges the orphaned derivative);
+	 *  - a deletion done by maintenance/deleteBatch.php, which calls
+	 *    LocalFile::deleteFile() directly and so never fires FileDeleteComplete
+	 *    (core fires it only from FileDeleteForm::doDelete — the web form and
+	 *    the API go through it, deleteBatch does not), followed by a re-upload;
+	 *  - the window between a reupload and the optimization job actually running.
+	 *
+	 * Without this check the stale derivative wins: every WebP-capable browser
+	 * gets the OLD image while the <img> fallback shows the new one, and no
+	 * 404 sweep can detect it because every URL still returns 200.
+	 *
+	 * Conservative: when the source is absent we cannot prove staleness (the
+	 * thumb.php-generates-on-request layout), so the derivative is kept.
+	 *
+	 * @param string $derivedPath Existing derived file
+	 * @param string|null $srcPath The source it should have been made from
+	 */
+	private function isStale( string $derivedPath, ?string $srcPath ): bool {
+		if ( $srcPath === null || !is_file( $srcPath ) ) {
+			return false;
+		}
+		$derivedTime = filemtime( $derivedPath );
+		$srcTime = filemtime( $srcPath );
+		if ( $derivedTime === false || $srcTime === false ) {
+			return false;
+		}
+		return $srcTime > $derivedTime;
 	}
 
 	/**

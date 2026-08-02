@@ -258,10 +258,25 @@ class MainHooks implements
 		}
 		[ , $webpDest ] = $webpInfo;
 
-		// Don't regenerate if already present and non-empty. A 0-byte/truncated
-		// leftover is treated as missing so we replace it (atomically) rather than
-		// leave a broken WebP that the rewriter would serve with no fallback.
-		if ( is_file( $webpDest ) && filesize( $webpDest ) > 0 ) {
+		// Don't regenerate if already present, non-empty and not stale. A
+		// 0-byte/truncated leftover is treated as missing so we replace it
+		// (atomically) rather than leave a broken WebP that the rewriter would
+		// serve with no fallback.
+		//
+		// The staleness test matters because MediaWiki regenerates thumbnails at
+		// the SAME paths: a WebP older than the thumbnail it was made from
+		// depicts the previous image. That happens whenever a different image
+		// lands on a name we already hold derivatives for without the reupload
+		// purge running (rename then re-upload under the freed name, a
+		// deleteBatch.php deletion then re-upload, …).
+		$storedSrc = $webpInfo[2] ?? null;
+		$isStale = false;
+		if ( is_string( $storedSrc ) && is_file( $storedSrc ) && is_file( $webpDest ) ) {
+			$srcTime = filemtime( $storedSrc );
+			$destTime = filemtime( $webpDest );
+			$isStale = $srcTime !== false && $destTime !== false && $srcTime > $destTime;
+		}
+		if ( is_file( $webpDest ) && filesize( $webpDest ) > 0 && !$isStale ) {
 			return true;
 		}
 
