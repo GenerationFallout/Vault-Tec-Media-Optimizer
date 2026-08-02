@@ -16,6 +16,18 @@ class SpecialVTMOStats extends SpecialPage {
 	private OptimizationRecord $record;
 
 	public function __construct( OptimizationRecord $record ) {
+		// NE PAS "corriger" l'avertissement de dépréciation de MediaWiki 1.46
+		// («  constructor parameters $restriction ... deprecated, override
+		// getRestriction() instead  ») tant que extension.json autorise 1.44/1.45.
+		// Vérifié sur les sources réelles : en 1.44.0 et 1.45.4, userCanExecute()
+		// et isRestricted() lisent la propriété privée $mRestriction DIRECTEMENT,
+		// et seule la 1.46 est passée par l'accesseur getRestriction(). Retirer ce
+		// 2e argument au profit d'une surcharge de getRestriction() laisserait donc
+		// $mRestriction vide sur 1.44/1.45 : le contrôle de droit deviendrait
+		// userHasRight($user, '') et cette page d'administration serait accessible
+		// à TOUT LE MONDE, y compris aux anonymes. La forme dépréciée est ici un
+		// choix délibéré ; elle reste fonctionnelle en 1.46 (simple avertissement).
+		// À changer uniquement quand le minimum requis passera à 1.46.
 		parent::__construct( 'VTMOStats', 'vaulttecmediaoptimizer-admin' );
 		$this->record = $record;
 	}

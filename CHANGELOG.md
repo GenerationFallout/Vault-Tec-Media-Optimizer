@@ -30,6 +30,18 @@ soit 5× plus gros. C'est le comportement correct (le visiteur ne doit jamais t�
 bonne part de vos médias est de ce type, le gain WebP se concentrera sur les contenus **photographiques**
 (captures, artworks), où le rapport s'inverse nettement (mesuré : WebP ~3,5× plus petit).
 
+### Security
+- **Documented an anti-fix on the three special pages (do NOT "fix" the 1.46 deprecation)** — running the
+  extension on a real MediaWiki 1.46 surfaces `SpecialPage constructor parameters $restriction ... deprecated,
+  override getRestriction() instead`. Applying that advice while `extension.json` still allows 1.44/1.45 would
+  be a privilege-escalation bug: verified against the actual 1.44.0 and 1.45.4 sources, `userCanExecute()` and
+  `isRestricted()` read the private `$mRestriction` property **directly** there, and only 1.46 switched to the
+  `getRestriction()` accessor. Dropping the constructor argument would therefore leave `$mRestriction` empty on
+  those versions, turning the check into `userHasRight( $user, '' )` and exposing all three admin pages to
+  everyone, anonymous users included. The deprecated form is deliberate and still functional on 1.46 (warning
+  only); each constructor now carries a comment explaining this and the condition to revisit it (minimum
+  requirement raised to 1.46).
+
 ### Fixed
 - **`repairCorruptedFilenames.php` no longer calls an `@internal` core API** — it was the only place still using
   the legacy `$dbr->select()`, which MediaWiki now marks `@internal` (verified against core 1.46.0): it is not
