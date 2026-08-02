@@ -1,0 +1,7 @@
+{
+	"requireLowerCase": "initial",
+	"requireCompleteMessageDocumentation": true,
+	"disallowUnusedDocumentation": true,
+	"disallowDuplicateTranslations": false,
+	"requireMetadata": true
+}

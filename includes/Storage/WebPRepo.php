@@ -107,7 +107,7 @@ class WebPRepo {
 	 * Compute the WebP filesystem path for a given original file path.
 	 *
 	 * @param string $originalPath E.g. /var/www/wiki/images/a/ab/File.png
-	 * @return string|null         E.g. /var/www/wiki/images_webp/a/ab/File.webp
+	 * @return string|null E.g. /var/www/wiki/images_webp/a/ab/File.webp
 	 *                             null if path is outside the upload directory
 	 */
 	public function getWebPPath( string $originalPath ): ?string {
@@ -457,17 +457,20 @@ class WebPRepo {
 			if ( is_writable( $dir ) ) {
 				return [ true, 'Directory already exists and is writable.' ];
 			}
-			return [ false, "Directory exists but is not writable: $dir (check permissions, should be 755 or 775 owned by the web server user)." ];
+			return [ false, "Directory exists but is not writable: $dir "
+				. "(check permissions, should be 755 or 775 owned by the web server user)." ];
 		}
 
 		// Check that the parent dir is writable BEFORE trying mkdir, so we
 		// can give a useful error message instead of a generic mkdir failure.
 		$parent = dirname( $dir );
 		if ( !is_dir( $parent ) ) {
-			return [ false, "Parent directory does not exist: $parent. This shouldn't happen — check your wiki installation." ];
+			return [ false, "Parent directory does not exist: $parent. "
+				. "This shouldn't happen — check your wiki installation." ];
 		}
 		if ( !is_writable( $parent ) ) {
-			return [ false, "Parent directory $parent is not writable by the web server. Either change its permissions, or create $dir manually via FTP (chmod 755)." ];
+			return [ false, "Parent directory $parent is not writable by the web server. "
+				. "Either change its permissions, or create $dir manually via FTP (chmod 755)." ];
 		}
 
 		$ok = @mkdir( $dir, 0755, false );

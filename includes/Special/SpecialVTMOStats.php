@@ -127,9 +127,12 @@ class SpecialVTMOStats extends SpecialPage {
 	private function renderOverview( array $stats ): string {
 		$lang = $this->getLanguage();
 
-		$savedFirstPass = (int)( $stats['lossless_saved'] ?? 0 );      // upload -> Imagick
-		$savedSecondPass = (int)( $stats['secondpass_saved'] ?? 0 );   // Imagick -> oxipng/zopfli
-		$savedTotal = (int)( $stats['total_saved'] ?? 0 );             // upload -> real file
+		// upload -> Imagick
+		$savedFirstPass = (int)( $stats['lossless_saved'] ?? 0 );
+		// Imagick -> oxipng/zopfli
+		$savedSecondPass = (int)( $stats['secondpass_saved'] ?? 0 );
+		// upload -> real file
+		$savedTotal = (int)( $stats['total_saved'] ?? 0 );
 		$webpSize = (int)$stats['total_webp_size'];
 		$bandwidthSaved = (int)( $stats['webp_bandwidth_saved'] ?? 0 );
 
@@ -198,9 +201,12 @@ class SpecialVTMOStats extends SpecialPage {
 	 */
 	private function renderDiskBalance( array $stats ): string {
 		$lang = $this->getLanguage();
-		$saved = (int)( $stats['total_saved'] ?? 0 );      // optimization gain (originals)
-		$webp = (int)( $stats['total_webp_size'] ?? 0 );   // WebP added (originals)
-		$balance = $saved - $webp;                          // signed
+		// optimization gain (originals)
+		$saved = (int)( $stats['total_saved'] ?? 0 );
+		// WebP added (originals)
+		$webp = (int)( $stats['total_webp_size'] ?? 0 );
+		// signed
+		$balance = $saved - $webp;
 
 		$balanceText = ( $balance >= 0 ? '+' : '−' )
 			. $lang->formatSize( abs( $balance ) );
@@ -235,14 +241,16 @@ class SpecialVTMOStats extends SpecialPage {
 	 */
 	private function renderBandwidthPerPage( array $stats ): string {
 		$lang = $this->getLanguage();
-		$webpRatio = (float)( $stats['webp_ratio'] ?? 0.0 ); // webp / optimized
+		// webp / optimized
+		$webpRatio = (float)( $stats['webp_ratio'] ?? 0.0 );
 		if ( $webpRatio <= 0 || $webpRatio >= 1 ) {
 			return '';
 		}
 
 		// Illustration assumptions.
 		$thumbsPerPage = 10;
-		$thumbKiB = 50; // representative size of a ~220px article thumbnail
+		// representative size of a ~220px article thumbnail
+		$thumbKiB = 50;
 		$origBytes = $thumbsPerPage * $thumbKiB * 1024;
 		$webpBytes = (int)round( $origBytes * $webpRatio );
 		$savedBytes = $origBytes - $webpBytes;

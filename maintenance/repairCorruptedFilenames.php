@@ -197,7 +197,8 @@ class RepairCorruptedFilenames extends Maintenance {
 						$from . "\t=>\t" . $expected . "\n", FILE_APPEND );
 					if ( $logged === false && !$this->loggedLogFailure ) {
 						$this->loggedLogFailure = true;
-						$this->output( "[warning]   cannot write the reversal log at $logPath — renames continue but are NOT being recorded\n" );
+						$this->output( "[warning]   cannot write the reversal log at $logPath — "
+							. "renames continue but are NOT being recorded\n" );
 					}
 					$this->output( "[fixed]     $name  <-  " . $this->visible( $candidate ) . "\n" );
 				} else {

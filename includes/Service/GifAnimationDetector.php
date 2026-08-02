@@ -60,12 +60,14 @@ class GifAnimationDetector {
 			while ( true ) {
 				$b = fread( $fh, 1 );
 				if ( !is_string( $b ) || $b === '' ) {
-					break; // truncated
+					// truncated
+					break;
 				}
 				$b = ord( $b );
 
 				if ( $b === 0x3B ) {
-					break; // trailer — end of GIF
+					// trailer — end of GIF
+					break;
 				}
 
 				if ( $b === 0x21 ) {
@@ -96,7 +98,8 @@ class GifAnimationDetector {
 						break;
 					}
 				} else {
-					break; // unknown block — corrupt; stop parsing
+					// unknown block — corrupt; stop parsing
+					break;
 				}
 			}
 			return false;

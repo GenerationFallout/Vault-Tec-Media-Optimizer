@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<ruleset>
+	<rule ref="./vendor/mediawiki/mediawiki-codesniffer/MediaWiki">
+		<!--
+			This extension exists to drive external image encoders (gifsicle,
+			zopflipng, oxipng, vips), so shell execution is its core mechanism,
+			not an incidental shortcut. Every call site uses proc_open with an
+			ARGUMENT ARRAY (no shell parsing at all), falls back to exec only
+			with escapeshellarg on every argument, and validates bare binary
+			names against /^[A-Za-z0-9._-]+$/ before use. A red-team pass with
+			hostile filenames (spaces, quotes, backticks, $, %, leading dashes,
+			RTL and zero-width characters) found no injection.
+
+			MediaWiki's Shell framework would be the idiomatic alternative, but
+			it is built around firejail/systemd sandboxing that is unavailable
+			in the shared-hosting deployments this extension targets, and it
+			cannot express the streaming temp-file + atomic-rename contract the
+			optimizers rely on. The trade-off is deliberate and documented.
+		-->
+		<exclude name="MediaWiki.Usage.ForbiddenFunctions.exec"/>
+		<exclude name="MediaWiki.Usage.ForbiddenFunctions.proc_open"/>
+		<exclude name="MediaWiki.Usage.ForbiddenFunctions.shell_exec"/>
+		<exclude name="MediaWiki.Usage.ForbiddenFunctions.escapeshellarg"/>
+		<exclude name="MediaWiki.Usage.ForbiddenFunctions.is_resource"/>
+
+		<!--
+			Filesystem operations here are deliberately best-effort: an unlink
+			of a temp file, an rmdir of a directory another process may have
+			already removed, or a stat of a file that can vanish mid-scan must
+			never emit a warning into a visitor's page render. Every silenced
+			call is followed by an explicit result check.
+		-->
+		<exclude name="Generic.PHP.NoSilencedErrors.Discouraged"/>
+	</rule>
+
+	<file>.</file>
+	<arg name="extensions" value="php"/>
+	<arg name="encoding" value="UTF-8"/>
+
+	<!--
+		tests/integration/ holds standalone CLI verification scripts, not
+		PHPUnit tests: each one declares stub MediaWiki classes under their
+		exact FQCNs so the REAL extension classes can be exercised against
+		real binaries and real files without a MediaWiki install. That design
+		inherently breaks one-class-per-file and namespace-per-file rules, so
+		the sniffer is not meaningful there.
+	-->
+	<exclude-pattern>tests/integration/</exclude-pattern>
+	<exclude-pattern>vendor/</exclude-pattern>
+	<exclude-pattern>node_modules/</exclude-pattern>
+	<exclude-pattern>docs/</exclude-pattern>
+</ruleset>

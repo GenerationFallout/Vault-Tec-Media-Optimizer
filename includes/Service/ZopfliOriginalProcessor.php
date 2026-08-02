@@ -166,6 +166,9 @@ class ZopfliOriginalProcessor {
 	/**
 	 * Resolve the on-disk path for a local file, with the same fallback logic
 	 * used elsewhere (compute from upload dir, fall back to getLocalRefPath).
+	 *
+	 * @param \MediaWiki\FileRepo\File\File $file
+	 * @return string|null
 	 */
 	private function resolveLocalPath( $file ): ?string {
 		// Prefer the repo-reported local reference (works across normalization).
@@ -187,6 +190,7 @@ class ZopfliOriginalProcessor {
 	 * from the actual file and writes them back to the `image` table. This is
 	 * exactly what we need after an in-place lossless recompression.
 	 *
+	 * @param \MediaWiki\FileRepo\File\File $file
 	 * @return bool False when the refresh threw — the caller must then NOT mark
 	 *  the row as processed, so the file is retried and never left with a stale
 	 *  img_sha1 behind a "done" marker.

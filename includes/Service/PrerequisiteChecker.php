@@ -707,11 +707,14 @@ class PrerequisiteChecker {
 		$last = strtolower( substr( $limit, -1 ) );
 		$value = (int)$limit;
 		switch ( $last ) {
-			case 'g': $value *= 1024;
+			case 'g':
+				$value *= 1024;
 				// no break - falls through
-			case 'm': $value *= 1024;
+			case 'm':
+				$value *= 1024;
 				// no break - falls through
-			case 'k': $value *= 1024;
+			case 'k':
+				$value *= 1024;
 		}
 		return $value;
 	}

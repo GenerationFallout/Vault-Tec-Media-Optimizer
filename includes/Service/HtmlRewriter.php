@@ -129,7 +129,8 @@ class HtmlRewriter {
 
 		// Process matches in REVERSE order so that replacement offsets earlier
 		// in the string remain valid as we splice in <picture> wrappers.
-		$replacements = []; // list of [offset, length, replacement] tuples
+		// list of [offset, length, replacement] tuples
+		$replacements = [];
 		foreach ( $matches as $m ) {
 			[ $tag, $offset ] = $m[0];
 			$src = $m[2][0];

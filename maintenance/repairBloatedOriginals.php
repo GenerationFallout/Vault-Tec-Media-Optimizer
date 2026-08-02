@@ -187,7 +187,7 @@ class RepairBloatedOriginals extends Maintenance {
 	 * Repair a single file. Returns a status array.
 	 *
 	 * @param MediaWikiServices $services
-	 * @param object $record OptimizationRecord
+	 * @param \MediaWiki\Extension\VaultTecMediaOptimizer\Storage\OptimizationRecord $record
 	 * @param string $imgName
 	 * @return array{status:string, before?:int, after?:int, saved?:int, reason?:string}
 	 */
@@ -283,7 +283,7 @@ class RepairBloatedOriginals extends Maintenance {
 	 * decoded and url-encoded on-disk variants (same approach the extension
 	 * uses elsewhere).
 	 *
-	 * @param object $file
+	 * @param \MediaWiki\FileRepo\File\File $file
 	 * @return string|null
 	 */
 	private function resolvePath( $file ): ?string {

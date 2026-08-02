@@ -143,6 +143,12 @@ class SpecialVTMOStatus extends SpecialPage {
 
 	private function renderCounts( array $summary ): string {
 		$parts = [];
+		// Message keys are built dynamically below. Listed here so grep-based
+		// tooling and translatewiki maintainers can find them:
+		// * vaulttecmediaoptimizer-status-ok
+		// * vaulttecmediaoptimizer-status-warn
+		// * vaulttecmediaoptimizer-status-fail
+		// * vaulttecmediaoptimizer-status-info
 		foreach ( [ 'ok', 'warn', 'fail', 'info' ] as $status ) {
 			$count = $summary[$status] ?? 0;
 			if ( $count > 0 ) {
@@ -245,7 +251,8 @@ class SpecialVTMOStatus extends SpecialPage {
 		$fsChecks = $report['sections']['filesystem'] ?? [];
 		foreach ( $fsChecks as $check ) {
 			if ( $check['label_key'] === 'vaulttecmediaoptimizer-check-webp-dir'
-				&& in_array( $check['status'], [ PrerequisiteChecker::STATUS_WARN, PrerequisiteChecker::STATUS_FAIL ], true )
+				&& in_array( $check['status'],
+					[ PrerequisiteChecker::STATUS_WARN, PrerequisiteChecker::STATUS_FAIL ], true )
 			) {
 				return true;
 			}

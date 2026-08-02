@@ -25,7 +25,8 @@ class BackfillScheduler {
 	/** Cache TTL for the eligible/pending counts (seconds). The dashboard
 	 *  auto-refreshes every 10s; without this each refresh re-ran a LEFT JOIN
 	 *  COUNT over the whole image table. The counts only drift as jobs run, so a
-	 *  few seconds of staleness is invisible in practice. */
+	 *  few seconds of staleness is invisible in practice.
+	 */
 	private const COUNT_TTL = 10;
 
 	private ServiceOptions $options;
@@ -133,10 +134,13 @@ class BackfillScheduler {
 	 * image table, re-hit on every dashboard auto-refresh.
 	 */
 	public function countPending(): int {
+		// __METHOD__ resolved outside the closure: inside one it would report
+		// the enclosing scope in a confusing way for query profiling.
+		$fname = __METHOD__;
 		return $this->cache->getWithSetCallback(
 			$this->cache->makeKey( 'vtmo-count-pending' ),
 			self::COUNT_TTL,
-			function () {
+			function () use ( $fname ) {
 				$db = $this->connectionProvider->getReplicaDatabase();
 				$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
 
@@ -148,7 +152,7 @@ class BackfillScheduler {
 					->from( 'image' )
 					->leftJoin( 'vtmo_image_optimization', null, 'io_img_name = img_name' )
 					->where( $pendingExpr )
-					->caller( __METHOD__ );
+					->caller( $fname );
 
 				$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
 				if ( $mimeExpr !== null ) {
@@ -166,17 +170,18 @@ class BackfillScheduler {
 	 * Cached for {@see self::COUNT_TTL}s; only changes on upload/delete.
 	 */
 	public function countTotalEligible(): int {
+		$fname = __METHOD__;
 		return $this->cache->getWithSetCallback(
 			$this->cache->makeKey( 'vtmo-count-eligible' ),
 			self::COUNT_TTL,
-			function () {
+			function () use ( $fname ) {
 				$db = $this->connectionProvider->getReplicaDatabase();
 				$allowedMimes = $this->options->get( 'VaultTecMediaOptimizerFormats' );
 
 				$queryBuilder = $db->newSelectQueryBuilder()
 					->select( 'COUNT(*)' )
 					->from( 'image' )
-					->caller( __METHOD__ );
+					->caller( $fname );
 
 				$mimeExpr = $this->buildMimeExpression( $db, $allowedMimes );
 				if ( $mimeExpr !== null ) {
@@ -192,7 +197,7 @@ class BackfillScheduler {
 	 * Build a SQL expression matching any of the given image MIME types
 	 * against image.img_major_mime + image.img_minor_mime.
 	 *
-	/**
+	 * /**
 	 * Build a WHERE expression matching any of the configured MIME types.
 	 *
 	 * Generates SQL like:

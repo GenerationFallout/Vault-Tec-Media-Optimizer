@@ -31,7 +31,8 @@ class OptimizationRecord {
 	private const THUMB_STATS_TABLE = 'vtmo_zopfli_thumb_stats';
 
 	/** Cache TTL for stats queries (seconds). Short enough that the dashboard
-	 *  feels live, long enough to shave 80% of DB queries on auto-refresh. */
+	 *  feels live, long enough to shave 80% of DB queries on auto-refresh.
+	 */
 	private const STATS_TTL = 15;
 	private const STATS_CACHE_KEY = 'vtmo-stats-v1';
 
@@ -345,9 +346,12 @@ class OptimizationRecord {
 		//   - first pass (upload -> Imagick):     original - optimized
 		//   - second pass (Imagick -> oxipng/zopfli): optimized - final
 		//   - TOTAL to date (upload -> real file): original - final
-		$result['lossless_saved'] = max( 0, $orig - $opt );          // 1st pass
-		$result['secondpass_saved'] = max( 0, $opt - $final );        // 2nd pass
-		$result['total_saved'] = max( 0, $orig - $final );            // total
+		// 1st pass
+		$result['lossless_saved'] = max( 0, $orig - $opt );
+		// 2nd pass
+		$result['secondpass_saved'] = max( 0, $opt - $final );
+		// total
+		$result['total_saved'] = max( 0, $orig - $final );
 		$result['lossless_ratio'] = $orig > 0 ? round( $opt / $orig, 4 ) : 0.0;
 		$result['total_ratio'] = $orig > 0 ? round( $final / $orig, 4 ) : 0.0;
 		$result['webp_ratio'] = $opt > 0 ? round( $webp / $opt, 4 ) : 0.0;
@@ -621,6 +625,9 @@ class OptimizationRecord {
 	 * variants are a belt-and-braces fallback for binary collations.
 	 *
 	 * Returns an OR expression group usable in andWhere().
+	 *
+	 * @param IReadableDatabase $db
+	 * @return IExpression
 	 */
 	private function pngFilenameCondition( IReadableDatabase $db ) {
 		return $db->orExpr( [
