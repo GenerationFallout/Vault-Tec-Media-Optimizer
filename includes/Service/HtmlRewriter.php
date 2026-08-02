@@ -150,35 +150,54 @@ class HtmlRewriter {
 				continue;
 			}
 
-			// Build the WebP srcset by combining the 1x (src) and all
-			// Retina/HiDPI variants (srcset of the original <img>). Each
-			// candidate is only included if the corresponding WebP file
-			// actually exists on disk.
+			// Build the WebP srcset from the 1x candidate (src) and every
+			// Retina/HiDPI variant of the original <img>'s srcset.
+			//
+			// ALL-OR-NOTHING. A <source> shadows the inner <img> for EVERY
+			// device-pixel ratio, so a PARTIAL candidate list is not a partial
+			// win — it is actively harmful:
+			//  - drop the 1x candidate (e.g. its WebP lost the size comparison)
+			//    and keep the 2x: the remaining "…2x" entry becomes the only
+			//    choice, so a 1x visitor downloads the double-resolution WebP.
+			//    Measured on a flat-colour UI thumbnail: 552 B served instead of
+			//    a 408 B PNG, i.e. +35% — the never-serve-larger guard defeated
+			//    by its own partial application.
+			//  - drop the 2x candidate and keep the 1x: a retina device renders
+			//    a half-resolution asset with no way back to the <img> srcset.
+			// So unless we can mirror the FULL ladder, we emit nothing and let
+			// the untouched <img> (with its own complete srcset) do its job.
 			$webpSrcsetParts = [];
+			$fullLadder = true;
 
 			// 1x candidate from src
 			$webpInfo = $this->webpRepo->getWebPUrlAndPath( $src );
 			if ( $webpInfo !== null && $this->ensureWebP( $webpInfo ) ) {
 				$webpSrcsetParts[] = $webpInfo[0];
+			} else {
+				$fullLadder = false;
 			}
 
 			// HiDPI candidates from srcset
-			if ( preg_match( '/\ssrcset\s*=\s*(["\'])([^"\']+)\1/i', $tag, $sm ) ) {
+			if ( $fullLadder && preg_match( '/\ssrcset\s*=\s*(["\'])([^"\']+)\1/i', $tag, $sm ) ) {
 				$srcsetRaw = htmlspecialchars_decode( $sm[2], ENT_QUOTES | ENT_HTML5 );
 				foreach ( $this->parseSrcset( $srcsetRaw ) as [ $candidateUrl, $descriptor ] ) {
+					// A candidate we cannot mirror (foreign host, no WebP, WebP
+					// not smaller, budget spent) invalidates the whole <source>.
 					if ( !$this->srcLooksLocal( $candidateUrl, $uploadPath ) ) {
-						continue;
+						$fullLadder = false;
+						break;
 					}
 					$info = $this->webpRepo->getWebPUrlAndPath( $candidateUrl );
 					if ( $info === null || !$this->ensureWebP( $info ) ) {
-						continue;
+						$fullLadder = false;
+						break;
 					}
 					$webpSrcsetParts[] = $info[0] . ( $descriptor !== '' ? ' ' . $descriptor : '' );
 				}
 			}
 
-			// If no WebP exists for any variant, leave the <img> alone.
-			if ( !$webpSrcsetParts ) {
+			// Incomplete ladder, or nothing at all: leave the <img> alone.
+			if ( !$fullLadder || !$webpSrcsetParts ) {
 				continue;
 			}
 
