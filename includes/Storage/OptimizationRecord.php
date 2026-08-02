@@ -110,12 +110,30 @@ class OptimizationRecord {
 			'io_error' => null,
 			'io_png_zopfli_size' => null,
 		];
+		// On UPDATE, preserve two columns that must NOT be clobbered by a
+		// re-processing of an already-known file:
+		//
+		//  - io_original_size: $originalSize is the size on disk RIGHT NOW,
+		//    which for a file we already optimized is the *optimized* size.
+		//    Overwriting would erase the true pre-optimization baseline and make
+		//    Special:VTMOStats report ~0 savings for a file that really did save.
+		//  - io_png_zopfli_size: resetting it to NULL puts the row back into the
+		//    "pending second pass" selection, so a file that already went through
+		//    zopflipng is recompressed again on every backfill wave — ~31 s per
+		//    file for 0 bytes gained, forever.
+		//
+		// Both were reproduced by running the optimize job after the zopfli job.
+		// A genuine NEW version is handled elsewhere: the reupload path drops the
+		// row entirely, so the next markComplete() inserts a fresh baseline.
+		$update = $row;
+		unset( $update['io_original_size'], $update['io_png_zopfli_size'] );
+
 		$db->newInsertQueryBuilder()
 			->insertInto( self::TABLE )
 			->row( [ 'io_img_name' => $imgName ] + $row )
 			->onDuplicateKeyUpdate()
 			->uniqueIndexFields( [ 'io_img_name' ] )
-			->set( $row )
+			->set( $update )
 			->caller( __METHOD__ )
 			->execute();
 	}

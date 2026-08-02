@@ -36,6 +36,9 @@ namespace MediaWiki\FileRepo\File {
 		public function getLocalRefPath() { return $this->abs; }
 		public function getMimeType(): string { return $this->mime; }
 		public function getSize() { return $this->size; }
+			// LocalFile exposes these; the bomb guard in shouldSkip() reads them.
+		public function getWidth() { $i = @getimagesize( $this->abs ); return $i ? $i[0] : 0; }
+		public function getHeight() { $i = @getimagesize( $this->abs ); return $i ? $i[1] : 0; }
 		public function exists(): bool { return is_file( $this->abs ); }
 	}
 }
@@ -148,6 +151,8 @@ namespace {
 		'VaultTecMediaOptimizerGifsicleLevel' => 3,
 		'UploadDirectory' => $IMG,
 		'UploadPath' => '/images',
+		// Core threshold reused by ImageProcessor as a decompression-bomb guard.
+		'MaxImageArea' => 1.25e7,
 	] );
 
 	$webpRepo = new ( $NS . 'Storage\\WebPRepo' )( $opts, $logger );

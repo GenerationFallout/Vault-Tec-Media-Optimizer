@@ -50,6 +50,9 @@ return [
 				'VaultTecMediaOptimizerGifsicleLevel',
 				'UploadDirectory',
 				'UploadPath',
+				// Core's own "too big to scale" threshold; reused as a
+				// decompression-bomb guard in ImageProcessor::shouldSkip().
+				'MaxImageArea',
 			],
 			$services->getMainConfig()
 		);

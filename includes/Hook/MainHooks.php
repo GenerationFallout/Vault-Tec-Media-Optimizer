@@ -106,6 +106,11 @@ class MainHooks implements
 				if ( is_string( $rel ) && $rel !== '' ) {
 					$this->webpRepo->deleteWebP( $uploadDir . '/' . $rel );
 				}
+				// Drop the tracking row too: new pixels mean a new baseline.
+				// markComplete() deliberately preserves io_original_size and the
+				// second-pass marker on update, so without this the row would
+				// keep describing the PREVIOUS version of the file.
+				$this->record->delete( $imgName );
 			} catch ( Throwable $e ) {
 				$this->logger->warning( 'WebP purge on reupload failed for {name}: {msg}',
 					[ 'name' => $imgName, 'msg' => $e->getMessage() ] );
@@ -277,6 +282,14 @@ class MainHooks implements
 			$isStale = $srcTime !== false && $destTime !== false && $srcTime > $destTime;
 		}
 		if ( is_file( $webpDest ) && filesize( $webpDest ) > 0 && !$isStale ) {
+			return true;
+		}
+
+		// A derived basename too long for the filesystem can never be written;
+		// attempting it just emits a PHP warning on every thumbnail render.
+		if ( !$this->webpRepo->isWritablePathLength( $webpDest ) ) {
+			$this->logger->debug( 'Skipping {dest}: derived filename too long for the filesystem',
+				[ 'dest' => $webpDest ] );
 			return true;
 		}
 

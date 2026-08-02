@@ -35,7 +35,9 @@ if ( $IP === false ) {
 require_once "$IP/maintenance/Maintenance.php";
 // @codeCoverageIgnoreEnd
 
+use MediaWiki\Extension\VaultTecMediaOptimizer\Service\TempFileSweeper;
 use MediaWiki\Extension\VaultTecMediaOptimizer\Storage\OptimizationRecord;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\IReadableDatabase;
 use Wikimedia\Rdbms\SelectQueryBuilder;
@@ -59,6 +61,9 @@ class OptimizeImages extends Maintenance {
 		$this->addOption( 'max', 'Stop after optimizing this many files (default: no limit).', false, true );
 		$this->addOption( 'force', 'Reprocess files already marked complete/skipped too.' );
 		$this->addOption( 'start', 'Resume scanning from this img_name (exclusive).', false, true );
+		$this->addOption( 'no-temp-sweep',
+			'Skip the opportunistic cleanup of temp files abandoned by a previously '
+			. 'killed run (see maintenance/cleanupTempFiles.php).' );
 		$this->addOption( 'purge-queue',
 			'Empty the VTMO OptimizeImage job queue before scanning, to avoid redundant '
 			. 'work after a previous Special:VTMOBackfill scheduling. The zopfli second-pass '
@@ -79,6 +84,25 @@ class OptimizeImages extends Maintenance {
 		}
 		$services = MediaWikiServices::getInstance();
 		$config = $services->getService( 'VaultTecMediaOptimizer.Config' );
+
+		// Opportunistic GC of temps abandoned by a previous killed run. They are
+		// publicly fetchable copies of uploads that survive deletion of the file
+		// they came from, so leaving them around is a privacy matter — and no
+		// in-process handler can remove them (an external encoder reparented by
+		// a SIGKILL writes its output after the parent is gone). Only our own
+		// temp shapes older than an hour are touched; --no-temp-sweep skips it.
+		if ( !$this->hasOption( 'no-temp-sweep' ) ) {
+			$sweeper = new TempFileSweeper( LoggerFactory::getInstance( 'VaultTecMediaOptimizer' ) );
+			$swept = $sweeper->sweep(
+				rtrim( (string)$config->get( 'UploadDirectory' ), '/' )
+			);
+			if ( $swept['removed'] > 0 ) {
+				$this->output( sprintf(
+					"Reclaimed %d abandoned temp file(s) from a previous interrupted run (%d bytes).\n\n",
+					$swept['removed'], $swept['bytes']
+				) );
+			}
+		}
 
 		if ( !$config->get( 'VaultTecMediaOptimizerEnabled' ) ) {
 			$this->fatalError(

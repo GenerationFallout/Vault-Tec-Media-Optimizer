@@ -374,6 +374,27 @@ class ImageProcessor {
 			return "File too large: " . $file->getSize() . " > $maxSize";
 		}
 
+		// Pixel-area guard (decompression bombs). Byte size says nothing about
+		// decoded cost: a 420 KB PNG declaring 12000x12000 took 34 s and peaked
+		// at 1.4 GB RSS here, and a 795-byte 30000x30000 PNG still burns ~13 s
+		// per attempt — on every --force run, since it is retried. Job runners
+		// typically have memory_limit = -1, so nothing else stops it.
+		//
+		// We reuse MediaWiki's own $wgMaxImageArea, the threshold core already
+		// applies before it will scale an image, so a file core refuses to
+		// thumbnail is not one we burn minutes and gigabytes on either.
+		$maxArea = (int)$this->options->get( 'MaxImageArea' );
+		if ( $maxArea > 0
+			&& method_exists( $file, 'getWidth' ) && method_exists( $file, 'getHeight' )
+		) {
+			$width = (int)$file->getWidth();
+			$height = (int)$file->getHeight();
+			if ( $width > 0 && $height > 0 && ( $width * $height ) > $maxArea ) {
+				return "Image area too large: {$width}x{$height} = "
+					. ( $width * $height ) . " px > $maxArea (\$wgMaxImageArea)";
+			}
+		}
+
 		return null;
 	}
 }

@@ -126,7 +126,7 @@ class WebPRepo {
 			// Unlike the realpath branch above, nothing has normalized this
 			// path yet: a "../" segment would map to (and via deleteWebP()
 			// potentially unlink) a file OUTSIDE images_webp. Reject it.
-			if ( strpos( $relative, '..' ) !== false || strpos( $relative, "\0" ) !== false ) {
+			if ( self::hasTraversalSegment( $relative ) || strpos( $relative, "\0" ) !== false ) {
 				return null;
 			}
 		} else {
@@ -202,7 +202,7 @@ class WebPRepo {
 		// Security: after decoding, reject any traversal sequence. The decoded
 		// relative path is used to build a source path we read from and a WebP
 		// path we write to, so "%2e%2e/" style escapes must not slip through.
-		if ( strpos( $relativeDecoded, '..' ) !== false
+		if ( self::hasTraversalSegment( $relativeDecoded )
 			|| strpos( $relativeDecoded, "\0" ) !== false
 		) {
 			return null;
@@ -282,7 +282,7 @@ class WebPRepo {
 		// outside the upload tree. Reject defensively.
 		if ( strpos( $fileName, '/' ) !== false
 			|| strpos( $fileName, '\\' ) !== false
-			|| strpos( $fileName, '..' ) !== false
+			|| $fileName === '.' || $fileName === '..'
 			|| strpos( $fileName, "\0" ) !== false
 		) {
 			return null;
@@ -382,6 +382,50 @@ class WebPRepo {
 	}
 
 	/**
+	 * Whether a relative path contains a real ".." SEGMENT (i.e. traversal).
+	 *
+	 * Testing for the substring instead is both wrong and harmful: MediaWiki
+	 * legitimately allows ".." inside a title, so a file named "v..2.png" was
+	 * being refused a servable derivative entirely — while a genuine traversal
+	 * is only ever expressed as a standalone segment.
+	 */
+	private static function hasTraversalSegment( string $relative ): bool {
+		foreach ( explode( '/', $relative ) as $segment ) {
+			if ( $segment === '..' ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether a derived file can physically be created at this path.
+	 *
+	 * Filesystems cap a single path COMPONENT at 255 bytes (NAME_MAX on
+	 * ext4/xfs/btrfs). Our writes need headroom on top of the final basename,
+	 * because the atomic publish first creates "<name>.vtmo.<pid>.<hex>.tmp".
+	 * MediaWiki happily accepts titles long enough to blow through that once
+	 * the derived name is built — and ".webp" is one byte longer than ".png",
+	 * so a legal upload can tip over purely by being converted.
+	 *
+	 * Without this check the encode is attempted, fails with "File name too
+	 * long", and — because no file ever lands on disk — the failure is never
+	 * negatively cached. It is then retried on EVERY page view, consuming a
+	 * unit of the per-render on-demand budget each time. Measured on a live
+	 * wiki: five long-named images ate the entire default budget of 5 on every
+	 * render, so the healthy images on the same page were never encoded at all.
+	 *
+	 * @param string $path Absolute destination path of the derived file
+	 * @return bool False if the write cannot possibly succeed
+	 */
+	public function isWritablePathLength( string $path ): bool {
+		// '.vtmo.' + pid + '.' + 12 hex + '.tmp' — sized generously so the
+		// guard never lets through a name the temp step would reject.
+		$tempOverhead = 30;
+		return strlen( basename( $path ) ) + $tempOverhead <= 255;
+	}
+
+	/**
 	 * Ensure the parent directory of a WebP file exists.
 	 * Returns true on success.
 	 */
@@ -457,7 +501,7 @@ class WebPRepo {
 		// impossible, but this method recursively deletes a directory.
 		if ( $imgName === '' || strpos( $imgName, '/' ) !== false
 			|| strpos( $imgName, '\\' ) !== false
-			|| strpos( $imgName, '..' ) !== false
+			|| $imgName === '.' || $imgName === '..'
 			|| strpos( $imgName, "\0" ) !== false
 		) {
 			return false;

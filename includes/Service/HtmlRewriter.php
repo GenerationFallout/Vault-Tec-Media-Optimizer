@@ -295,6 +295,19 @@ class HtmlRewriter {
 			return false;
 		}
 
+		// Bail BEFORE spending budget on a write that cannot physically land:
+		// a derived basename too long for the filesystem fails every time, is
+		// never negatively cached (no file ever appears on disk), and would
+		// therefore burn one unit of the render budget on every single view —
+		// starving the healthy images on the same page.
+		if ( !$this->webpRepo->isWritablePathLength( $webpPath ) ) {
+			$this->logger->debug(
+				'Skipping {dest}: derived filename too long for the filesystem',
+				[ 'dest' => $webpPath ]
+			);
+			return false;
+		}
+
 		// Make sure the destination directory exists.
 		if ( !$this->webpRepo->ensureDirFor( $webpPath ) ) {
 			$this->logger->warning( 'On-demand WebP: cannot create directory for {dest}',
